@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "654337446519",
+    "project_id": "rapilead-b41b9",
+    "storage_bucket": "rapilead-b41b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:654337446519:android:d07666ab0d147c25d3ec72",
+        "android_client_info": {
+          "package_name": "com.example.rapilead"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "654337446519-sovnjtuq7seu3j0otvep9aq1i7u5nj9d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.rapilead",
+            "certificate_hash": "cb8e7245c0e29b75150fb583e1fbea693cd25bb9"
+          }
+        },
+        {
+          "client_id": "654337446519-nc8n466dodms99s6bjsf3p0tr6mlq6r6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjZWcYznVuRxVdIWT_T9eWctpw6MfOxSU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "654337446519-nc8n466dodms99s6bjsf3p0tr6mlq6r6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "654337446519-gleea0btkj67r1cvaurg7avpa4eqp2fu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.rapilead"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

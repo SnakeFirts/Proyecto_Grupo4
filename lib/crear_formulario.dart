@@ -23,11 +23,11 @@ class CrearPersonaForm extends StatefulWidget {
 class _CrearPersonaFormState extends State<CrearPersonaForm> {
   final _formKey = GlobalKey<FormState>();
 
-  final _companiaNameProspectoController = TextEditingController(); 
-  final _nombreInfoProspectoController = TextEditingController(); 
-  final _direccionFechaController = TextEditingController(); 
-  final _cargoDetalleController = TextEditingController(); 
-  final _correoEstadoController = TextEditingController(); 
+  final _companiaNameProspectoController = TextEditingController();
+  final _nombreInfoProspectoController = TextEditingController();
+  final _direccionFechaController = TextEditingController();
+  final _cargoDetalleController = TextEditingController();
+  final _correoEstadoController = TextEditingController();
   final _telefonoController = TextEditingController();
   final _movilController = TextEditingController();
 
@@ -64,6 +64,18 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
         );
       }
     } else {
+      widget.handleOnCreateLead!(
+        Lead(
+          nameprospecto: _companiaNameProspectoController.text,
+          infoprospecto: _nombreInfoProspectoController.text,
+          fecha: _direccionFechaController.text,
+          detalle: _cargoDetalleController.text,
+          estado: _correoEstadoController.text,
+          telefono: _telefonoController.text,
+          correo: _movilController
+              .text, 
+        ),
+      );
       if (widget.handleOnCreateLead != null) {
         widget.handleOnCreateLead!(
           Lead(
@@ -96,8 +108,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
     bool isP = widget.isProspecto;
 
     return Scaffold(
-      appBar: AppBar(
-          title: Text(isP ? 'Crear Prospecto' : 'Crear Lead')),
+      appBar: AppBar(title: Text(isP ? 'Crear Prospecto' : 'Crear Lead')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -113,7 +124,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-
                 TextFormField(
                   controller: _nombreInfoProspectoController,
                   maxLines: !isP ? 3 : 1,
@@ -127,7 +137,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-
                 TextFormField(
                   controller: _direccionFechaController,
                   maxLines: isP ? 3 : 1,
@@ -141,7 +150,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-
                 TextFormField(
                   controller: _cargoDetalleController,
                   maxLines: !isP ? 4 : 1,
@@ -155,7 +163,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-
                 isP
                     ? TextFormField(
                         controller: _correoEstadoController,
@@ -182,10 +189,12 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                             ? _correoEstadoController.text
                             : null,
                         decoration: const InputDecoration(labelText: 'Estado'),
-                        items: EstadoOpciones.lista.map((estado) => DropdownMenuItem(
+                        items: EstadoOpciones.lista
+                            .map((estado) => DropdownMenuItem(
                                   value: estado,
                                   child: Text(estado),
-                                )).toList(),
+                                ))
+                            .toList(),
                         onChanged: (nuevoEstado) {
                           if (nuevoEstado != null) {
                             _correoEstadoController.text = nuevoEstado;
@@ -195,7 +204,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                             ? 'Por favor seleccione un estado'
                             : null,
                       ),
-
                 if (isP) ...[
                   TextFormField(
                     controller: _telefonoController,

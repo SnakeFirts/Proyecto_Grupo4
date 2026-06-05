@@ -4,6 +4,8 @@ class Lead {
   String fecha;
   String detalle;
   String estado;
+  String telefono;
+  String correo;
 
   Lead({
     required this.nameprospecto,
@@ -11,9 +13,9 @@ class Lead {
     required this.fecha,
     required this.detalle,
     required this.estado,
+    this.telefono = '',
+    this.correo = '',
   });
 
-  String fullName() {
-    return infoprospecto;
-  }
+  String fullName() => infoprospecto;
 }

@@ -20,8 +20,7 @@ void main() async {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-
-  // 2. CORRECCIÓN: Pásale las opciones actuales de tu plataforma
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -31,22 +30,44 @@ void main() async {
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class AppColors {
-  static const Color blue = Color(0xFF3B82F6);
-  static const Color blueDark = Color(0xFF1D4ED8);
-  static const Color textWhite = Color(0xFFFFFFFF);
-  static const Color textGrey = Color(0xFF94A3B8);
-  static const Color textDark = Color(0xFF0F172A);
-  static const Color textMedium = Color(0xFF475569);
-  static const Color bgPage = Color(0xFFF0F4FF);
+  // Marca
+  static const Color primary = Color(0xFF3BBDF5); // azul cian del logo
+  static const Color accent = Color(0xFFF5A623); // naranja del logo
+
+  // Alias
+  static const Color blue = primary;
+  static const Color blueDark = Color(0xFF1A9FD8);
+  static const Color orange = accent;
+
+  // Fondos
+  static const Color bgPage = Color(0xFFF8FBFF);
   static const Color bgCard = Color(0xFFFFFFFF);
   static const Color inputBg = Color(0xFFFFFFFF);
-  static const Color inputBorder = Color(0xFFE2E8F0);
+
+  // Textos
+  static const Color textDark = Color(0xFF0F172A);
+  static const Color textMedium = Color(0xFF475569);
+  static const Color textGrey = Color(0xFF94A3B8);
+  static const Color textWhite = Color(0xFFFFFFFF);
   static const Color labelGrey = Color(0xFF94A3B8);
-  static const Color error = Color(0xFFEF4444);
+
+  // Bordes
+  static const Color inputBorder = Color(0xFFE2EAF4);
+  static const Color divider = Color(0xFFE2EAF4);
+
+  // Estados con color
+  static const Color error = Color(0xFFEF4444); // rojo
   static const Color errorBg = Color(0xFFFEF2F2);
   static const Color errorBorder = Color(0xFFFCA5A5);
-  static const Color divider = Color(0xFFE2E8F0);
-  static const Color orange = Color(0xFFF97316);
+  static const Color success = Color(0xFF22C55E); // verde
+  static const Color successBg = Color(0xFFF0FDF4);
+  static const Color warning = Color(0xFFF59E0B); // amarillo
+  static const Color warningBg = Color(0xFFFFFBEB);
+  static const Color info = Color(0xFF3BBDF5); // cian
+
+  // Roles (para las tarjetas de Vendedor/Administrador)
+  static const Color vendedor = Color(0xFF3BBDF5); // cian
+  static const Color admin = Color(0xFFF5A623); // naranja
 }
 
 // ─── Seguridad ────────────────────────────────────────────────────────────────
@@ -269,7 +290,6 @@ Widget _primaryButton({
     );
 
 // ─── INSTANCIA GLOBAL DE GOOGLE SIGN IN ───────────────────────────────────────
-// Con la versión 6.2.1 limpia, el constructor por defecto con scopes vuelve a ser estable.
 final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
@@ -457,8 +477,6 @@ class _LoginPageState extends State<LoginPage> {
                   child: Container(
                     width: 68,
                     height: 68,
-                    
-
 
                     // Aquí va el logo de rapilead
                   ),
@@ -619,7 +637,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // ─── Botón de Google Estilizado ───
+                // ─── Botón de Google ───
                 const Row(children: [
                   Expanded(
                       child: Divider(color: AppColors.divider, thickness: 1)),
@@ -847,12 +865,16 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                     const EdgeInsets.symmetric(vertical: 16),
                                 decoration: BoxDecoration(
                                   color: sel
-                                      ? AppColors.blue.withAlpha(20)
+                                      ? (i == 0
+                                          ? AppColors.vendedor.withAlpha(20)
+                                          : const Color.fromARGB(255, 245, 35, 35).withAlpha(20))
                                       : AppColors.bgCard,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: sel
-                                        ? AppColors.blue
+                                        ? (i == 0
+                                            ? AppColors.vendedor
+                                            : const Color.fromARGB(255, 245, 35, 35))
                                         : AppColors.inputBorder,
                                     width: sel ? 2 : 1.5,
                                   ),
@@ -864,7 +886,9 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                       _roleIcons[i],
                                       size: 28,
                                       color: sel
-                                          ? AppColors.blue
+                                          ? (i == 0
+                                              ? AppColors.vendedor
+                                              : const Color.fromARGB(255, 245, 35, 35))
                                           : AppColors.labelGrey,
                                     ),
                                     const SizedBox(height: 8),
@@ -872,7 +896,9 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                       _roles[i],
                                       style: TextStyle(
                                         color: sel
-                                            ? AppColors.blue
+                                            ? (i == 0
+                                                ? AppColors.vendedor
+                                                : const Color.fromARGB(255, 245, 35, 35))
                                             : AppColors.textMedium,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
@@ -936,8 +962,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                             ? 'Mínimo 8 caracteres'
                             : null,
                       ),
-
-                      // Reemplaza TODO el bloque del medidor por esto
+                      
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -1023,8 +1048,6 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                           ),
                         ],
                       ),
-
-                      
 
                       if (_errorMsg != null) ...[
                         const SizedBox(height: 16),

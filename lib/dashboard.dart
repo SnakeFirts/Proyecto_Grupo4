@@ -5,20 +5,21 @@ import 'models/lead.dart';
 import 'views/bitacora_screen.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:rapilead/main.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─── Colores (reutilizados del diseño) ───────────────────────────────────────
 class _C {
-  static const blue       = Color(0xFF3B82F6);
-  static const bgPage     = Color(0xFFF0F4FF);
-  static const bgCard     = Color(0xFFFFFFFF);
-  static const textDark   = Color(0xFF0F172A);
+  static const blue = Color(0xFF3B82F6);
+  static const bgPage = Color(0xFFF0F4FF);
+  static const bgCard = Color(0xFFFFFFFF);
+  static const textDark = Color(0xFF0F172A);
   static const textMedium = Color(0xFF475569);
-  static const textGrey   = Color(0xFF94A3B8);
-  static const divider    = Color(0xFFE2E8F0);
-  static const green      = Color(0xFF22C55E);
-  static const amber      = Color(0xFFF59E0B);
-  static const red        = Color(0xFFEF4444);
-  static const purple     = Color(0xFF8B5CF6);
+  static const textGrey = Color(0xFF94A3B8);
+  static const divider = Color(0xFFE2E8F0);
+  static const green = Color(0xFF22C55E);
+  static const amber = Color(0xFFF59E0B);
+  static const red = Color(0xFFEF4444);
+  static const purple = Color(0xFF8B5CF6);
 }
 
 // ─── Shell con bottom nav ────────────────────────────────────────────────────
@@ -43,8 +44,7 @@ class _DashboardpState extends State<Dashboardp> {
     final pages = [
       InicioScreen(prospectos: prospectos, leads: leads),
       ProspectosScreen(
-          prospectos: prospectos,
-          handleOnCreateProspecto: _addProspecto),
+          prospectos: prospectos, handleOnCreateProspecto: _addProspecto),
       LeadsScreen(leads: leads, handleOnCreateLead: _addLead),
       const BitacoraTabScreen(),
       const PerfilScreen(),
@@ -77,11 +77,11 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      (Icons.home_outlined,      Icons.home_rounded,        'Inicio'),
-      (Icons.person_add_outlined, Icons.person_add_rounded,  'Prospectos'),
-      (Icons.bar_chart_outlined,  Icons.bar_chart_rounded,   'Leads'),
-      (Icons.menu_book_outlined,  Icons.menu_book_rounded,   'Bitácora'),
-      (Icons.person_outline,      Icons.person_rounded,      'Perfil'),
+      (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
+      (Icons.person_add_outlined, Icons.person_add_rounded, 'Prospectos'),
+      (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Leads'),
+      (Icons.menu_book_outlined, Icons.menu_book_rounded, 'Bitácora'),
+      (Icons.person_outline, Icons.person_rounded, 'Perfil'),
     ];
 
     return Container(
@@ -113,8 +113,7 @@ class _BottomNav extends StatelessWidget {
                         items[i].$3,
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight:
-                              sel ? FontWeight.w700 : FontWeight.w400,
+                          fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
                           color: sel ? _C.blue : _C.textGrey,
                         ),
                       ),
@@ -144,16 +143,15 @@ class _BottomNav extends StatelessWidget {
 // ─── Inicio (Home) ────────────────────────────────────────────────────────────
 class InicioScreen extends StatelessWidget {
   final List<Prospecto> prospectos;
-  final List<Lead>      leads;
+  final List<Lead> leads;
 
   const InicioScreen(
       {super.key, required this.prospectos, required this.leads});
 
   @override
   Widget build(BuildContext context) {
-    final visitasHoy = leads
-        .where((l) => l.estado.toLowerCase() == 'abierto')
-        .length;
+    final visitasHoy =
+        leads.where((l) => l.estado.toLowerCase() == 'abierto').length;
 
     return Scaffold(
       backgroundColor: _C.bgPage,
@@ -181,16 +179,17 @@ class InicioScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Buenos días',
-                      style: TextStyle(
-                          color: _C.textGrey, fontSize: 13)),
-                  Text('Juan Martínez',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: _C.textDark)),
-                ]),
+                const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Buenos días',
+                          style: TextStyle(color: _C.textGrey, fontSize: 13)),
+                      Text('Juan Martínez',
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _C.textDark)),
+                    ]),
                 const Spacer(),
                 Stack(children: [
                   Container(
@@ -199,8 +198,7 @@ class InicioScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _C.bgCard,
                       borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: _C.divider, width: 1.5),
+                      border: Border.all(color: _C.divider, width: 1.5),
                     ),
                     child: const Icon(Icons.notifications_outlined,
                         color: _C.textMedium, size: 20),
@@ -327,14 +325,11 @@ class InicioScreen extends StatelessWidget {
           child: Column(children: [
             Text(value,
                 style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: _C.blue)),
+                    fontSize: 22, fontWeight: FontWeight.w800, color: _C.blue)),
             const SizedBox(height: 2),
             Text(label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 11, color: _C.textGrey)),
+                style: const TextStyle(fontSize: 11, color: _C.textGrey)),
           ]),
         ),
       );
@@ -362,8 +357,7 @@ class InicioScreen extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12)),
+                color: iconBg, borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: iconColor, size: 22),
           ),
           const SizedBox(height: 10),
@@ -374,13 +368,12 @@ class InicioScreen extends StatelessWidget {
                   color: _C.textDark)),
           const SizedBox(height: 2),
           Text(subtitle,
-              style: const TextStyle(
-                  fontSize: 12, color: _C.textGrey)),
+              style: const TextStyle(fontSize: 12, color: _C.textGrey)),
           const SizedBox(height: 6),
           const Align(
             alignment: Alignment.centerRight,
-            child: Icon(Icons.arrow_forward_rounded,
-                size: 16, color: _C.textGrey),
+            child:
+                Icon(Icons.arrow_forward_rounded, size: 16, color: _C.textGrey),
           ),
         ]),
       );
@@ -412,19 +405,17 @@ class InicioScreen extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _C.textDark)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          fontSize: 12, color: _C.textGrey)),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              const SizedBox(height: 2),
+              Text(subtitle,
+                  style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+            ]),
           ),
           Text(time,
               style: const TextStyle(
@@ -450,7 +441,7 @@ class ProspectosScreen extends StatefulWidget {
 }
 
 class _ProspectosScreenState extends State<ProspectosScreen> {
-  String _query     = '';
+  String _query = '';
   String _filtroTab = 'Todos';
   final _tabs = ['Todos', 'Activos', 'Nuevos', 'Inactivos'];
 
@@ -475,16 +466,17 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(children: [
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Gestión',
-                      style:
-                          TextStyle(fontSize: 12, color: _C.textGrey)),
-                  Text('Prospectos',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: _C.textDark)),
-                ]),
+                const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Gestión',
+                          style: TextStyle(fontSize: 12, color: _C.textGrey)),
+                      Text('Prospectos',
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: _C.textDark)),
+                    ]),
                 const Spacer(),
                 _addButton(context),
               ]),
@@ -497,14 +489,13 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
               }),
             ),
             const SizedBox(height: 12),
-            _filterTabs(_tabs, _filtroTab,
-                (t) => setState(() => _filtroTab = t)),
+            _filterTabs(
+                _tabs, _filtroTab, (t) => setState(() => _filtroTab = t)),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('${list.length} registros encontrados',
-                  style: const TextStyle(
-                      fontSize: 13, color: _C.textGrey)),
+                  style: const TextStyle(fontSize: 13, color: _C.textGrey)),
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -513,8 +504,7 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: list.length,
-                      itemBuilder: (ctx, i) =>
-                          _prospectoCard(list[i]),
+                      itemBuilder: (ctx, i) => _prospectoCard(list[i]),
                     ),
             ),
           ],
@@ -535,7 +525,6 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
         border: Border.all(color: _C.divider),
       ),
       child: Row(children: [
-        // Avatar
         Container(
           width: 48,
           height: 48,
@@ -546,47 +535,45 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
           child: Center(
             child: Text(initials,
                 style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15)),
+                    color: color, fontWeight: FontWeight.w700, fontSize: 15)),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(p.nombre,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _C.textDark)),
-                const SizedBox(height: 2),
-                Text(p.compania,
-                    style: const TextStyle(
-                        fontSize: 12, color: _C.textGrey)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.phone_outlined,
-                      size: 12, color: _C.textGrey),
-                  const SizedBox(width: 4),
-                  Text(p.telefono,
-                      style: const TextStyle(
-                          fontSize: 12, color: _C.textGrey)),
-                ]),
-              ]),
-        ),
-        Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _statusChip('Activo', _C.green),
-              const SizedBox(height: 8),
-              Row(children: [
-                _iconAction(Icons.phone_outlined, _C.green),
-                const SizedBox(width: 6),
-                _iconAction(Icons.mail_outline_rounded, _C.blue),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(p.nombre,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _C.textDark)),
+            const SizedBox(height: 2),
+            Text(p.compania,
+                style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+            const SizedBox(height: 4),
+            Row(children: [
+              const Icon(Icons.phone_outlined, size: 12, color: _C.textGrey),
+              const SizedBox(width: 4),
+              Text(p.telefono,
+                  style: const TextStyle(fontSize: 12, color: _C.textGrey)),
             ]),
+          ]),
+        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          _statusChip('Activo', _C.green),
+          const SizedBox(height: 8),
+          Row(children: [
+            GestureDetector(
+              onTap: () => _llamar(p.telefono),
+              child: _iconAction(Icons.phone_outlined, _C.green),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => _enviarCorreo(p.correo, nombre: p.nombre),
+              child: _iconAction(Icons.mail_outline_rounded, _C.blue),
+            ),
+          ]),
+        ]),
       ]),
     );
   }
@@ -605,7 +592,7 @@ class LeadsScreen extends StatefulWidget {
 }
 
 class _LeadsScreenState extends State<LeadsScreen> {
-  String _query     = '';
+  String _query = '';
   String _filtroTab = 'Todos';
   final _tabs = ['Todos', 'Abierto', 'Completado', 'Perdido'];
 
@@ -633,16 +620,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(children: [
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Oportunidades',
-                      style:
-                          TextStyle(fontSize: 12, color: _C.textGrey)),
-                  Text('Leads',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: _C.textDark)),
-                ]),
+                const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Oportunidades',
+                          style: TextStyle(fontSize: 12, color: _C.textGrey)),
+                      Text('Leads',
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: _C.textDark)),
+                    ]),
                 const Spacer(),
                 _addButton(context),
               ]),
@@ -655,14 +643,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
               }),
             ),
             const SizedBox(height: 12),
-            _filterTabs(_tabs, _filtroTab,
-                (t) => setState(() => _filtroTab = t)),
+            _filterTabs(
+                _tabs, _filtroTab, (t) => setState(() => _filtroTab = t)),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('${list.length} leads activos',
-                  style: const TextStyle(
-                      fontSize: 13, color: _C.textGrey)),
+                  style: const TextStyle(fontSize: 13, color: _C.textGrey)),
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -689,8 +676,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              BitacoraScreen(nombreLead: l.nameprospecto),
+          builder: (_) => BitacoraScreen(nombreLead: l.nameprospecto),
         ),
       ),
       child: Container(
@@ -712,45 +698,44 @@ class _LeadsScreenState extends State<LeadsScreen> {
             child: Center(
               child: Text(initials,
                   style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15)),
+                      color: color, fontWeight: FontWeight.w700, fontSize: 15)),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.nameprospecto,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: _C.textDark)),
-                  const SizedBox(height: 2),
-                  Text(l.infoprospecto.isEmpty
-                          ? l.nameprospecto
-                          : l.infoprospecto,
-                      style: const TextStyle(
-                          fontSize: 12, color: _C.textGrey)),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.calendar_today_outlined,
-                        size: 11, color: _C.textGrey),
-                    const SizedBox(width: 4),
-                    Text(l.fecha.isEmpty ? '—' : l.fecha,
-                        style: const TextStyle(
-                            fontSize: 11, color: _C.textGrey)),
-                  ]),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(l.nameprospecto,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              const SizedBox(height: 2),
+              Text(l.infoprospecto.isEmpty ? l.nameprospecto : l.infoprospecto,
+                  style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Icons.calendar_today_outlined,
+                    size: 11, color: _C.textGrey),
+                const SizedBox(width: 4),
+                Text(l.fecha.isEmpty ? '—' : l.fecha,
+                    style: const TextStyle(fontSize: 11, color: _C.textGrey)),
+              ]),
+            ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             _statusChip(l.estado, estadoColor),
             const SizedBox(height: 8),
             Row(children: [
-              _iconAction(Icons.phone_outlined, _C.green),
+              GestureDetector(
+                onTap: () => _llamar(l.telefono),
+                child: _iconAction(Icons.phone_outlined, _C.green),
+              ),
               const SizedBox(width: 6),
-              _iconAction(Icons.mail_outline_rounded, _C.blue),
+              GestureDetector(
+                onTap: () => _enviarCorreo(l.correo, nombre: l.nameprospecto),
+                child: _iconAction(Icons.mail_outline_rounded, _C.blue),
+              ),
             ]),
           ]),
         ]),
@@ -760,10 +745,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
   Color _estadoColor(String e) {
     switch (e.toLowerCase()) {
-      case 'completado': return _C.green;
-      case 'abierto':    return _C.amber;
-      case 'perdido':    return _C.red;
-      default:           return _C.textGrey;
+      case 'completado':
+        return _C.green;
+      case 'abierto':
+        return _C.amber;
+      case 'perdido':
+        return _C.red;
+      default:
+        return _C.textGrey;
     }
   }
 }
@@ -866,15 +855,14 @@ class PerfilScreen extends StatelessWidget {
                     if (context.mounted) {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(
-                            builder: (_) => const LoginPage()),
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
                       );
                     }
                   },
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Cerrar sesión',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _C.red.withValues(alpha: 0.08),
                     foregroundColor: _C.red,
@@ -915,7 +903,7 @@ class PerfilScreen extends StatelessWidget {
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 class MiFAB extends StatelessWidget {
   final Function(Prospecto)? handleOnCreateProspecto;
-  final Function(Lead)?      handleOnCreateLead;
+  final Function(Lead)? handleOnCreateLead;
 
   const MiFAB(
       {super.key, this.handleOnCreateProspecto, this.handleOnCreateLead});
@@ -966,34 +954,29 @@ class MiFAB extends StatelessWidget {
 
 // ─── Helpers de UI ────────────────────────────────────────────────────────────
 
-Widget _searchBar(String hint, ValueChanged<String> onChanged) =>
-    TextField(
+Widget _searchBar(String hint, ValueChanged<String> onChanged) => TextField(
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle:
-            const TextStyle(color: _C.textGrey, fontSize: 14),
-        prefixIcon:
-            const Icon(Icons.search, color: _C.textGrey, size: 20),
+        hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
+        prefixIcon: const Icon(Icons.search, color: _C.textGrey, size: 20),
         filled: true,
         fillColor: _C.bgCard,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: _C.divider, width: 1.5),
+          borderSide: const BorderSide(color: _C.divider, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: _C.blue, width: 1.8),
+          borderSide: const BorderSide(color: _C.blue, width: 1.8),
         ),
       ),
     );
 
 Widget _filterTabs(
-    List<String> tabs, String selected, ValueChanged<String> onTap) =>
+        List<String> tabs, String selected, ValueChanged<String> onTap) =>
     SizedBox(
       height: 38,
       child: ListView.builder(
@@ -1007,20 +990,18 @@ Widget _filterTabs(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: sel ? _C.blue : _C.bgCard,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: sel ? _C.blue : _C.divider, width: 1.5),
+                border:
+                    Border.all(color: sel ? _C.blue : _C.divider, width: 1.5),
               ),
               child: Text(
                 tabs[i],
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight:
-                      sel ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                   color: sel ? Colors.white : _C.textMedium,
                 ),
               ),
@@ -1031,8 +1012,7 @@ Widget _filterTabs(
     );
 
 Widget _statusChip(String label, Color color) => Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
@@ -1040,9 +1020,7 @@ Widget _statusChip(String label, Color color) => Container(
       ),
       child: Text(label,
           style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700)),
+              color: color, fontSize: 11, fontWeight: FontWeight.w700)),
     );
 
 Widget _iconAction(IconData icon, Color color) => Container(
@@ -1066,16 +1044,11 @@ Widget _addButton(BuildContext context) => Container(
     );
 
 Widget _emptyState(String msg) => Center(
-      child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.inbox_outlined,
-                size: 48, color: _C.textGrey),
-            const SizedBox(height: 12),
-            Text(msg,
-                style: const TextStyle(
-                    color: _C.textGrey, fontSize: 15)),
-          ]),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.inbox_outlined, size: 48, color: _C.textGrey),
+        const SizedBox(height: 12),
+        Text(msg, style: const TextStyle(color: _C.textGrey, fontSize: 15)),
+      ]),
     );
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
@@ -1089,9 +1062,35 @@ String _initials(String name) {
 
 Color _colorFromInitials(String initials) {
   final colors = [
-    _C.blue, _C.green, _C.amber, _C.red, _C.purple,
-    const Color(0xFF0891B2), const Color(0xFF7C3AED),
+    _C.blue,
+    _C.green,
+    _C.amber,
+    _C.red,
+    _C.purple,
+    const Color(0xFF0891B2),
+    const Color(0xFF7C3AED),
   ];
   final idx = initials.codeUnitAt(0) % colors.length;
   return colors[idx];
+}
+
+Future<void> _llamar(String telefono) async {
+  final uri = Uri(scheme: 'tel', path: telefono);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri);
+  }
+}
+
+Future<void> _enviarCorreo(String email, {String? nombre}) async {
+  final uri = Uri(
+    scheme: 'mailto',
+    path: email,
+    queryParameters: {
+      'subject': 'Seguimiento RapiLead${nombre != null ? " - $nombre" : ""}',
+      'body': 'Hola${nombre != null ? " $nombre" : ""},\n\n',
+    },
+  );
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri);
+  }
 }

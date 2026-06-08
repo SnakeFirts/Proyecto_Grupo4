@@ -902,11 +902,14 @@ class PerfilScreen extends StatelessWidget {
 
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 class MiFAB extends StatelessWidget {
-  final Function(Prospecto)? handleOnCreateProspecto;
-  final Function(Lead)? handleOnCreateLead;
+  final Function(Prospecto) handleOnCreateProspecto;
+  final Function(Lead) handleOnCreateLead;
 
-  const MiFAB(
-      {super.key, this.handleOnCreateProspecto, this.handleOnCreateLead});
+  const MiFAB({
+    super.key,
+    required this.handleOnCreateProspecto,
+    required this.handleOnCreateLead,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -917,35 +920,44 @@ class MiFAB extends StatelessWidget {
       foregroundColor: Colors.white,
       spaceBetweenChildren: 8,
       children: [
+        // Botón para crear Lead
         SpeedDialChild(
           child: const Icon(Icons.bar_chart_rounded),
           label: 'Agregar Lead',
           backgroundColor: _C.blue,
           foregroundColor: Colors.white,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CrearPersonaForm(
-                isProspecto: false,
-                handleOnCreateLead: handleOnCreateLead,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CrearPersonaForm(
+                  isProspecto: false,
+                  // Solo pasamos la función, eliminamos el .then()
+                  handleOnCreateLead: handleOnCreateLead, 
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
+        
+        // Botón para crear Prospecto
         SpeedDialChild(
-          child: const Icon(Icons.person_add_outlined),
+          child: const Icon(Icons.person_add_rounded),
           label: 'Agregar Prospecto',
-          backgroundColor: _C.blue,
+          backgroundColor: _C.green, 
           foregroundColor: Colors.white,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CrearPersonaForm(
-                isProspecto: true,
-                handleOnCreateProspecto: handleOnCreateProspecto,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CrearPersonaForm(
+                  isProspecto: true,
+                  // Solo pasamos la función, eliminamos el .then()
+                  handleOnCreateProspecto: handleOnCreateProspecto,
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ],
     );

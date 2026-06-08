@@ -43,53 +43,82 @@ class BitacoraScreen extends StatelessWidget {
                     children: [
                       InteractionChip(
                         titulo: 'Llamada',
-                        icono: Icons.call,
-                        seleccionado:
-                            controller.tipoSeleccionado == 'Llamada',
-                        onTap: () {
-                          controller.seleccionarTipo('Llamada',);
-                        },
+                        icono: Icons.phone,
+                        seleccionado: controller.tipoSeleccionado == 'Llamada',
+                        onTap: () => controller.seleccionarTipo('Llamada'), // <-- Cambio aquí
                       ),
+                      const SizedBox(width: 12),
                       InteractionChip(
                         titulo: 'Correo',
                         icono: Icons.email,
-                        seleccionado:
-                            controller.tipoSeleccionado == 'Correo',
-                        onTap: () {
-                          controller.seleccionarTipo('Correo',);
-                        },
+                        seleccionado: controller.tipoSeleccionado == 'Correo',
+                        onTap: () => controller.seleccionarTipo('Correo'), // <-- Cambio aquí
                       ),
+                      const SizedBox(width: 12),
                       InteractionChip(
                         titulo: 'Visita',
-                        icono: Icons.directions_car_filled,
-                        seleccionado:
-                            controller.tipoSeleccionado == 'Visita',
-                        onTap: () {
-                          controller.seleccionarTipo('Visita',);
-                        },
+                        icono: Icons.location_on,
+                        seleccionado: controller.tipoSeleccionado == 'Visita',
+                        onTap: () => controller.seleccionarTipo('Visita'), // <-- Cambio aquí
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  TextField(
-                    controller: controller.comentarioController, maxLines: 5,
-                    decoration: InputDecoration(
-                      hintText: controller.getHint(),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
+                  
+                  // --- SECCIÓN MODIFICADA: TEXTFIELD + MICRÓFONO ---
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      TextField(
+                        controller: controller.comentarioController,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          hintText: controller.getHint(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
                       ),
-                    ),
+                      
+                      // Mostramos el botón de micrófono SÓLO si es Llamada
+                      if (controller.tipoSeleccionado == 'Llamada') ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              controller.isListening ? 'Escuchando...' : 'Dictar nota',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: controller.isListening ? Colors.red : Colors.grey,
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                controller.isListening ? Icons.mic : Icons.mic_none,
+                                color: controller.isListening ? Colors.red : Colors.blue,
+                              ),
+                              onPressed: () {
+                                if (controller.isListening) {
+                                  controller.stopListening();
+                                } else {
+                                  controller.startListening();
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
+                  // --- FIN SECCIÓN MODIFICADA ---
+
                   const SizedBox(height: 24),
-                  if (controller.tipoSeleccionado ==
-                      'Visita')
+                  if (controller.tipoSeleccionado == 'Visita')
                     GpsCard(
-                      cargando:
-                          controller.cargandoGps,
-                      gpsCargado:
-                          controller.gpsCargado,
-                      posicion:
-                          controller.posicion,
+                      cargando: controller.cargandoGps,
+                      gpsCargado: controller.gpsCargado,
+                      posicion: controller.posicion,
                     ),
 
                   const Spacer(),

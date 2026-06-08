@@ -473,8 +473,8 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 48),
-                Center(
-                  child: Container(
+                const Center(
+                  child: SizedBox(
                     width: 68,
                     height: 68,
 
@@ -524,10 +524,12 @@ class _LoginPageState extends State<LoginPage> {
                               hint: 'correo@empresa.com',
                               focused: _emailFocus),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return 'Ingresa tu correo';
-                            if (!SecurityHelper.isValidEmail(v))
+                            }
+                            if (!SecurityHelper.isValidEmail(v)) {
                               return 'Formato inválido';
+                            }
                             return null;
                           },
                         ),
@@ -557,8 +559,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Ingresa tu contraseña';
+                            }
                             if (v.length < 6) return 'Mínimo 6 caracteres';
                             return null;
                           },

@@ -5,7 +5,6 @@ import 'models/estado_opciones.dart';
 
 class CrearPersonaForm extends StatefulWidget {
   final bool isProspecto;
-
   final Function(Prospecto)? handleOnCreateProspecto;
   final Function(Lead)? handleOnCreateLead;
 
@@ -34,6 +33,10 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
   @override
   void initState() {
     super.initState();
+    // Si es un Lead, establecemos el estado por defecto a 'Abierto'
+    if (!widget.isProspecto) {
+      _correoEstadoController.text = 'Abierto';
+    }
   }
 
   @override
@@ -46,6 +49,23 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
     _telefonoController.dispose();
     _movilController.dispose();
     super.dispose();
+  }
+
+  // Método para mostrar el calendario
+  Future<void> _seleccionarFecha(BuildContext context) async {
+    final DateTime? fechaSeleccionada = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (fechaSeleccionada != null) {
+      setState(() {
+        _direccionFechaController.text =
+            "${fechaSeleccionada.year}-${fechaSeleccionada.month.toString().padLeft(2, '0')}-${fechaSeleccionada.day.toString().padLeft(2, '0')}";
+      });
+    }
   }
 
   void _procesarGuardado() {
@@ -64,18 +84,6 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
         );
       }
     } else {
-      widget.handleOnCreateLead!(
-        Lead(
-          nameprospecto: _companiaNameProspectoController.text,
-          infoprospecto: _nombreInfoProspectoController.text,
-          fecha: _direccionFechaController.text,
-          detalle: _cargoDetalleController.text,
-          estado: _correoEstadoController.text,
-          telefono: _telefonoController.text,
-          correo: _movilController
-              .text, 
-        ),
-      );
       if (widget.handleOnCreateLead != null) {
         widget.handleOnCreateLead!(
           Lead(
@@ -100,6 +108,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
         content: Text('Se creó con éxito el $modelo: $nombreCreado'),
       ),
     );
+
     Navigator.pop(context);
   }
 
@@ -142,10 +151,13 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   maxLines: isP ? 3 : 1,
                   minLines: isP ? 2 : 1,
                   keyboardType:
-                      isP ? TextInputType.multiline : TextInputType.text,
+                      isP ? TextInputType.multiline : TextInputType.datetime,
+                  readOnly: !isP, // Evita que se abra el teclado para el Lead
+                  onTap: !isP ? () => _seleccionarFecha(context) : null, // Abre el calendario
                   decoration: InputDecoration(
                     labelText: isP ? 'Dirección' : 'Fecha',
                     alignLabelWithHint: true,
+                    suffixIcon: !isP ? const Icon(Icons.calendar_today) : null,
                   ),
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,

@@ -4,14 +4,14 @@ class InteractionChip extends StatelessWidget {
   final String titulo;
   final IconData icono;
   final bool seleccionado;
-  final VoidCallback onTap;
+  final VoidCallback onTap; // Solo dejamos onTap
 
   const InteractionChip({
     super.key,
     required this.titulo,
     required this.icono,
     required this.seleccionado,
-    required this.onTap,
+    required this.onTap, // Eliminamos el "alSeleccionar" que causaba conflicto
   });
 
   @override

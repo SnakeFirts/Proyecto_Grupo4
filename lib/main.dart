@@ -11,7 +11,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 void main() async {
-  // 1. Asegura que los canales de comunicación nativa estén listos
   WidgetsFlutterBinding.ensureInitialized();
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -478,7 +477,8 @@ class _LoginPageState extends State<LoginPage> {
                     width: 68,
                     height: 68,
 
-                    // Aquí va el logo de rapilead
+
+
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1075,7 +1075,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
   }
 }
 
-// ─── STUBS DE PÁGINAS FALTANTES PARA ELIMINAR ERRORES DE NAVEGACIÓN ──────────
+
 class RecuperarAccesoPage extends StatefulWidget {
   const RecuperarAccesoPage({super.key});
 

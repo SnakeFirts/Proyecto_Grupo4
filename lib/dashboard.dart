@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
-import 'crear_formulario.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'models/prospecto.dart';
 import 'models/lead.dart';
+import 'services/firestore_service.dart';
+import 'views/prospecto_form.dart';
+import 'views/lead_form.dart';
 import 'views/bitacora_screen.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-import 'package:rapilead/main.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'main.dart';
 
-// ─── Colores (reutilizados del diseño) ───────────────────────────────────────
+// ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
   static const blue = Color(0xFF3B82F6);
   static const bgPage = Color(0xFFF0F4FF);
@@ -22,7 +26,7 @@ class _C {
   static const purple = Color(0xFF8B5CF6);
 }
 
-// ─── Shell con bottom nav ────────────────────────────────────────────────────
+// ─── Shell principal ──────────────────────────────────────────────────────────
 class Dashboardp extends StatefulWidget {
   const Dashboardp({super.key});
 
@@ -32,46 +36,50 @@ class Dashboardp extends StatefulWidget {
 
 class _DashboardpState extends State<Dashboardp> {
   int _tabIndex = 0;
-
-  List<Prospecto> prospectos = [];
-  List<Lead> leads = [];
-
-  void _addProspecto(Prospecto p) => setState(() => prospectos.add(p));
-  void _addLead(Lead l) => setState(() => leads.add(l));
+  final _svc = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      InicioScreen(prospectos: prospectos, leads: leads),
-      ProspectosScreen(
-          prospectos: prospectos, handleOnCreateProspecto: _addProspecto),
-      LeadsScreen(leads: leads, handleOnCreateLead: _addLead),
-      const BitacoraTabScreen(),
-      const PerfilScreen(),
-    ];
+    return StreamBuilder<List<Prospecto>>(
+      stream: _svc.streamProspectos(),
+      builder: (ctx, snapP) {
+        return StreamBuilder<List<Lead>>(
+          stream: _svc.streamLeads(),
+          builder: (ctx, snapL) {
+            final prospectos = snapP.data ?? [];
+            final leads = snapL.data ?? [];
 
-    return Scaffold(
-      backgroundColor: _C.bgPage,
-      body: IndexedStack(index: _tabIndex, children: pages),
-      bottomNavigationBar: _BottomNav(
-        currentIndex: _tabIndex,
-        onTap: (i) => setState(() => _tabIndex = i),
-      ),
-      floatingActionButton: (_tabIndex == 0 || _tabIndex == 1 || _tabIndex == 2)
-          ? MiFAB(
-              handleOnCreateProspecto: _addProspecto,
-              handleOnCreateLead: _addLead,
-            )
-          : null,
+            final pages = [
+              InicioScreen(prospectos: prospectos, leads: leads, svc: _svc),
+              ProspectosScreen(prospectos: prospectos, svc: _svc),
+              LeadsScreen(leads: leads, svc: _svc),
+              const BitacoraTabScreen(),
+              const PerfilScreen(),
+            ];
+
+            return Scaffold(
+              backgroundColor: _C.bgPage,
+              body: IndexedStack(index: _tabIndex, children: pages),
+              bottomNavigationBar: _BottomNav(
+                currentIndex: _tabIndex,
+                onTap: (i) => setState(() => _tabIndex = i),
+              ),
+              floatingActionButton:
+                  (_tabIndex == 0 || _tabIndex == 1 || _tabIndex == 2)
+                      ? _MiFAB(svc: _svc)
+                      : null,
+            );
+          },
+        );
+      },
     );
   }
 }
 
-// ─── Bottom Navigation Bar ───────────────────────────────────────────────────
+// ─── Bottom Navigation Bar ────────────────────────────────────────────────────
 class _BottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-
   const _BottomNav({required this.currentIndex, required this.onTap});
 
   @override
@@ -103,29 +111,23 @@ class _BottomNav extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        sel ? items[i].$2 : items[i].$1,
-                        color: sel ? _C.blue : _C.textGrey,
-                        size: 24,
-                      ),
+                      Icon(sel ? items[i].$2 : items[i].$1,
+                          color: sel ? _C.blue : _C.textGrey, size: 24),
                       const SizedBox(height: 3),
-                      Text(
-                        items[i].$3,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
-                          color: sel ? _C.blue : _C.textGrey,
-                        ),
-                      ),
+                      Text(items[i].$3,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight:
+                                sel ? FontWeight.w700 : FontWeight.w400,
+                            color: sel ? _C.blue : _C.textGrey,
+                          )),
                       if (sel) ...[
                         const SizedBox(height: 2),
                         Container(
                           width: 4,
                           height: 4,
                           decoration: const BoxDecoration(
-                            color: _C.blue,
-                            shape: BoxShape.circle,
-                          ),
+                              color: _C.blue, shape: BoxShape.circle),
                         ),
                       ],
                     ],
@@ -140,18 +142,39 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-// ─── Inicio (Home) ────────────────────────────────────────────────────────────
+// ─── Inicio ───────────────────────────────────────────────────────────────────
 class InicioScreen extends StatelessWidget {
   final List<Prospecto> prospectos;
   final List<Lead> leads;
+  final FirestoreService svc;
 
-  const InicioScreen(
-      {super.key, required this.prospectos, required this.leads});
+  const InicioScreen({
+    super.key,
+    required this.prospectos,
+    required this.leads,
+    required this.svc,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final visitasHoy =
-        leads.where((l) => l.estado.toLowerCase() == 'abierto').length;
+    final user = FirebaseAuth.instance.currentUser;
+    final nombre = user?.displayName ?? user?.email?.split('@').first ?? 'Usuario';
+    final initials = _initials(nombre);
+    final hora = DateTime.now().hour;
+    final saludo = hora < 12
+        ? 'Buenos días'
+        : hora < 18
+            ? 'Buenas tardes'
+            : 'Buenas noches';
+
+    final leadsAbiertos = leads.where((l) => l.estado.toLowerCase() == 'abierto').length;
+    final hoy = DateTime.now();
+    final visitasHoy = leads.where((l) {
+      return l.fecha != null &&
+          l.fecha!.year == hoy.year &&
+          l.fecha!.month == hoy.month &&
+          l.fecha!.day == hoy.day;
+    }).length;
 
     return Scaffold(
       backgroundColor: _C.bgPage,
@@ -161,7 +184,6 @@ class InicioScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Saludo ─────────────────────────────────────────────
               Row(children: [
                 Container(
                   width: 46,
@@ -170,143 +192,114 @@ class InicioScreen extends StatelessWidget {
                     color: _C.blue,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Center(
-                    child: Text('JM',
-                        style: TextStyle(
+                  child: Center(
+                    child: Text(initials,
+                        style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
                             fontSize: 16)),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Buenos días',
-                          style: TextStyle(color: _C.textGrey, fontSize: 13)),
-                      Text('Juan Martínez',
-                          style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: _C.textDark)),
-                    ]),
-                const Spacer(),
-                Stack(children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _C.bgCard,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _C.divider, width: 1.5),
-                    ),
-                    child: const Icon(Icons.notifications_outlined,
-                        color: _C.textMedium, size: 20),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                          color: _C.red, shape: BoxShape.circle),
-                    ),
-                  ),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(saludo,
+                      style: const TextStyle(color: _C.textGrey, fontSize: 13)),
+                  Text(nombre,
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: _C.textDark)),
                 ]),
+                const Spacer(),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _C.bgCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _C.divider, width: 1.5),
+                  ),
+                  child: const Icon(Icons.notifications_outlined,
+                      color: _C.textMedium, size: 20),
+                ),
               ]),
               const SizedBox(height: 24),
 
-              // ── KPI chips ──────────────────────────────────────────
+              // ── KPIs ─────────────────────────────────────────────────────
               Row(children: [
-                _kpiCard('${prospectos.length}', 'Prospectos'),
-                const SizedBox(width: 12),
-                _kpiCard('${leads.length}', 'Leads activos'),
-                const SizedBox(width: 12),
-                _kpiCard('$visitasHoy', 'Visitas hoy'),
+                _kpiCard('${prospectos.length}', 'Prospectos', _C.blue),
+                const SizedBox(width: 10),
+                _kpiCard('$leadsAbiertos', 'Leads activos', _C.amber),
+                const SizedBox(width: 10),
+                _kpiCard('$visitasHoy', 'Hoy', _C.green),
               ]),
               const SizedBox(height: 24),
 
-              // ── Cuatro módulos ─────────────────────────────────────
-              Row(children: [
-                Expanded(
-                  child: _moduleCard(
-                    icon: Icons.person_add_outlined,
-                    iconColor: _C.blue,
-                    iconBg: _C.blue.withValues(alpha: 0.10),
-                    title: 'Prospectos',
-                    subtitle: '${prospectos.length} registros',
-                    selected: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _moduleCard(
-                    icon: Icons.bar_chart_rounded,
-                    iconColor: _C.textMedium,
-                    iconBg: _C.textMedium.withValues(alpha: 0.08),
-                    title: 'Leads',
-                    subtitle: '${leads.length} activos',
-                  ),
-                ),
-              ]),
+              // ── Acceso rápido ─────────────────────────────────────────────
+              const Text('Acceso rápido',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
-                  child: _moduleCard(
-                    icon: Icons.menu_book_outlined,
-                    iconColor: _C.green,
-                    iconBg: _C.green.withValues(alpha: 0.10),
-                    title: 'Bitácoras',
-                    subtitle: '18 entradas',
+                  child: _quickCard(
+                    icon: Icons.person_add_outlined,
+                    label: 'Nuevo\nProspecto',
+                    color: _C.blue,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProspectoForm(firestoreService: svc),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: _moduleCard(
-                    icon: Icons.insert_chart_outlined_rounded,
-                    iconColor: _C.purple,
-                    iconBg: _C.purple.withValues(alpha: 0.10),
-                    title: 'Reportes',
-                    subtitle: 'Semana actual',
+                  child: _quickCard(
+                    icon: Icons.bar_chart_rounded,
+                    label: 'Nuevo\nLead',
+                    color: _C.purple,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LeadForm(firestoreService: svc),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _quickCard(
+                    icon: Icons.phone_outlined,
+                    label: 'Llamada\nrápida',
+                    color: _C.green,
+                    onTap: () => _mostrarPickerLlamada(context),
                   ),
                 ),
               ]),
               const SizedBox(height: 24),
-
-              // ── Actividad reciente ─────────────────────────────────
-              const Row(children: [
-                Text('Actividad reciente',
+              
+              Row(children: [
+                const Text('Últimos leads',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: _C.textDark)),
-                Spacer(),
-                Text('Ver todo',
+                const Spacer(),
+                const Text('Ver todo',
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: _C.blue)),
               ]),
               const SizedBox(height: 12),
-              _activityItem(
-                  icon: Icons.phone_outlined,
-                  iconColor: _C.blue,
-                  title: 'Tecno Soluciones S.A.',
-                  subtitle: 'Llamada — acuerdo de piloto',
-                  time: '09:24'),
-              _activityItem(
-                  icon: Icons.location_on_outlined,
-                  iconColor: _C.green,
-                  title: 'Constructora del Norte',
-                  subtitle: 'Visita presencial registrada',
-                  time: 'Ayer'),
-              _activityItem(
-                  icon: Icons.mail_outline_rounded,
-                  iconColor: _C.purple,
-                  title: 'Farmacia Central',
-                  subtitle: 'Cotización enviada por correo',
-                  time: 'Lun'),
+              if (leads.isEmpty)
+                _emptyState('No hay leads registrados')
+              else
+                ...leads.take(3).map((l) => _leadMiniCard(context, l, svc)),
             ],
           ),
         ),
@@ -314,7 +307,73 @@ class InicioScreen extends StatelessWidget {
     );
   }
 
-  Widget _kpiCard(String value, String label) => Expanded(
+  void _mostrarPickerLlamada(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _C.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Llamar a...',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: _C.textDark)),
+            const SizedBox(height: 12),
+            if (leads.isEmpty && prospectos.isEmpty)
+              const Text('No hay contactos registrados.',
+                  style: TextStyle(color: _C.textGrey))
+            else
+              ...([
+                ...prospectos.map((p) => _contactoTile(
+                    p.nombre, p.telefono, Icons.person_outline_rounded)),
+                ...leads.map((l) => _contactoTile(
+                    l.nameprospecto, l.telefono, Icons.bar_chart_rounded)),
+              ].take(8)),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contactoTile(String nombre, String tel, IconData icon) {
+    if (tel.isEmpty) return const SizedBox.shrink();
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: _C.blue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: _C.blue, size: 18),
+      ),
+      title:
+          Text(nombre, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text(tel, style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+      trailing: GestureDetector(
+        onTap: () => _llamar(tel),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: _C.green.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.phone_rounded, color: _C.green, size: 18),
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String value, String label, Color color) => Expanded(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
           decoration: BoxDecoration(
@@ -324,8 +383,8 @@ class InicioScreen extends StatelessWidget {
           ),
           child: Column(children: [
             Text(value,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800, color: _C.blue)),
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
             const SizedBox(height: 2),
             Text(label,
                 textAlign: TextAlign.center,
@@ -334,58 +393,55 @@ class InicioScreen extends StatelessWidget {
         ),
       );
 
-  Widget _moduleCard({
+  Widget _quickCard({
     required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String title,
-    required String subtitle,
-    bool selected = false,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
   }) =>
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _C.bgCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? _C.blue : _C.divider,
-            width: selected ? 1.8 : 1,
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _C.bgCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _C.divider),
           ),
+          child: Column(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 8),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _C.textDark)),
+          ]),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-                color: iconBg, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(height: 10),
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _C.textDark)),
-          const SizedBox(height: 2),
-          Text(subtitle,
-              style: const TextStyle(fontSize: 12, color: _C.textGrey)),
-          const SizedBox(height: 6),
-          const Align(
-            alignment: Alignment.centerRight,
-            child:
-                Icon(Icons.arrow_forward_rounded, size: 16, color: _C.textGrey),
-          ),
-        ]),
       );
 
-  Widget _activityItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String time,
-  }) =>
-      Container(
+  Widget _leadMiniCard(BuildContext context, Lead l, FirestoreService svc) {
+    final initials = _initials(l.nameprospecto);
+    final color = _colorFromInitials(initials);
+    final estadoColor = _estadoColor(l.estado);
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BitacoraScreen(lead: l, svc: svc),
+        ),
+      ),
+      child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -398,43 +454,47 @@ class InicioScreen extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.10),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Center(
+              child: Text(initials,
+                  style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13)),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
+              Text(l.nameprospecto,
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: _C.textDark)),
-              const SizedBox(height: 2),
-              Text(subtitle,
+              Text(l.infoprospecto,
                   style: const TextStyle(fontSize: 12, color: _C.textGrey)),
             ]),
           ),
-          Text(time,
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: _C.textGrey,
-                  fontWeight: FontWeight.w500)),
+          _statusChip(l.estado, estadoColor),
         ]),
-      );
+      ),
+    );
+  }
 }
 
 // ─── Prospectos ───────────────────────────────────────────────────────────────
 class ProspectosScreen extends StatefulWidget {
   final List<Prospecto> prospectos;
-  final Function(Prospecto) handleOnCreateProspecto;
+  final FirestoreService svc;
 
-  const ProspectosScreen(
-      {super.key,
-      required this.prospectos,
-      required this.handleOnCreateProspecto});
+  const ProspectosScreen({
+    super.key,
+    required this.prospectos,
+    required this.svc,
+  });
 
   @override
   State<ProspectosScreen> createState() => _ProspectosScreenState();
@@ -442,15 +502,15 @@ class ProspectosScreen extends StatefulWidget {
 
 class _ProspectosScreenState extends State<ProspectosScreen> {
   String _query = '';
-  String _filtroTab = 'Todos';
-  final _tabs = ['Todos', 'Activos', 'Nuevos', 'Inactivos'];
 
   List<Prospecto> get _filtered {
+    final q = _query.toLowerCase();
+    if (q.isEmpty) return widget.prospectos;
     return widget.prospectos.where((p) {
-      final q = _query.toLowerCase();
       return p.nombre.toLowerCase().contains(q) ||
           p.compania.toLowerCase().contains(q) ||
-          p.telefono.contains(q);
+          p.telefono.contains(q) ||
+          p.correo.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -466,35 +526,48 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(children: [
-                const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Gestión',
-                          style: TextStyle(fontSize: 12, color: _C.textGrey)),
-                      Text('Prospectos',
-                          style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: _C.textDark)),
-                    ]),
+                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Gestión',
+                      style: TextStyle(fontSize: 12, color: _C.textGrey)),
+                  Text('Prospectos',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: _C.textDark)),
+                ]),
                 const Spacer(),
-                _addButton(context),
+                // Botón + funcional
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ProspectoForm(firestoreService: widget.svc),
+                    ),
+                  ),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _C.blue,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child:
+                        const Icon(Icons.add, color: Colors.white, size: 22),
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 14),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _searchBar('Nombre, empresa, teléfono...', (v) {
-                setState(() => _query = v);
-              }),
+              child: _searchBar('Nombre, empresa, teléfono...',
+                  (v) => setState(() => _query = v)),
             ),
-            const SizedBox(height: 12),
-            _filterTabs(
-                _tabs, _filtroTab, (t) => setState(() => _filtroTab = t)),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('${list.length} registros encontrados',
+              child: Text('${list.length} prospectos',
                   style: const TextStyle(fontSize: 13, color: _C.textGrey)),
             ),
             const SizedBox(height: 8),
@@ -504,7 +577,8 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: list.length,
-                      itemBuilder: (ctx, i) => _prospectoCard(list[i]),
+                      itemBuilder: (ctx, i) =>
+                          _prospectoCard(ctx, list[i]),
                     ),
             ),
           ],
@@ -513,68 +587,135 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
     );
   }
 
-  Widget _prospectoCard(Prospecto p) {
+  Widget _prospectoCard(BuildContext context, Prospecto p) {
     final initials = _initials(p.compania);
     final color = _colorFromInitials(initials);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _C.bgCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _C.divider),
-      ),
-      child: Row(children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Center(
-            child: Text(initials,
-                style: TextStyle(
-                    color: color, fontWeight: FontWeight.w700, fontSize: 15)),
-          ),
+
+    return Dismissible(
+      key: Key(p.id ?? p.nombre),
+      background: _swipeBg(
+          color: _C.blue,
+          icon: Icons.edit_outlined,
+          label: 'Editar',
+          alignment: Alignment.centerLeft),
+      secondaryBackground: _swipeBg(
+          color: _C.red,
+          icon: Icons.delete_outline_rounded,
+          label: 'Eliminar',
+          alignment: Alignment.centerRight),
+      confirmDismiss: (dir) async {
+        if (dir == DismissDirection.startToEnd) {
+          // Editar
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  ProspectoForm(prospecto: p, firestoreService: widget.svc),
+            ),
+          );
+          return false; // No quitar de la lista, Firestore actualiza
+        } else {
+          return await _confirmarEliminacion(context, 'prospecto', p.nombre);
+        }
+      },
+      onDismissed: (dir) {
+        if (dir == DismissDirection.endToStart && p.id != null) {
+          widget.svc.eliminarProspecto(p.id!);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _C.divider),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.nombre,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _C.textDark)),
-            const SizedBox(height: 2),
-            Text(p.compania,
-                style: const TextStyle(fontSize: 12, color: _C.textGrey)),
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.phone_outlined, size: 12, color: _C.textGrey),
-              const SizedBox(width: 4),
-              Text(p.telefono,
+        child: Row(children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: Text(initials,
+                  style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Text(p.nombre,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              const SizedBox(height: 2),
+              Text(p.compania,
                   style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Icons.phone_outlined, size: 12, color: _C.textGrey),
+                const SizedBox(width: 4),
+                Text(p.telefono.isEmpty ? '—' : p.telefono,
+                    style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+              ]),
+            ]),
+          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            // Botón convertir a lead
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LeadForm(
+                    prospectoOrigen: p,
+                    firestoreService: widget.svc,
+                  ),
+                ),
+              ),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _C.purple.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _C.purple.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.swap_horiz_rounded,
+                      color: _C.purple, size: 12),
+                  const SizedBox(width: 3),
+                  const Text('Lead',
+                      style: TextStyle(
+                          color: _C.purple,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              GestureDetector(
+                onTap: () => _llamar(p.telefono),
+                child: _iconAction(Icons.phone_outlined, _C.green),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => _enviarCorreo(p.correo, nombre: p.nombre),
+                child: _iconAction(Icons.mail_outline_rounded, _C.blue),
+              ),
             ]),
           ]),
-        ),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          _statusChip('Activo', _C.green),
-          const SizedBox(height: 8),
-          Row(children: [
-            GestureDetector(
-              onTap: () => _llamar(p.telefono),
-              child: _iconAction(Icons.phone_outlined, _C.green),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: () => _enviarCorreo(p.correo, nombre: p.nombre),
-              child: _iconAction(Icons.mail_outline_rounded, _C.blue),
-            ),
-          ]),
         ]),
-      ]),
+      ),
     );
   }
 }
@@ -582,10 +723,9 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
 // ─── Leads ────────────────────────────────────────────────────────────────────
 class LeadsScreen extends StatefulWidget {
   final List<Lead> leads;
-  final Function(Lead) handleOnCreateLead;
+  final FirestoreService svc;
 
-  const LeadsScreen(
-      {super.key, required this.leads, required this.handleOnCreateLead});
+  const LeadsScreen({super.key, required this.leads, required this.svc});
 
   @override
   State<LeadsScreen> createState() => _LeadsScreenState();
@@ -599,7 +739,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
   List<Lead> get _filtered {
     return widget.leads.where((l) {
       final q = _query.toLowerCase();
-      final matchQ = l.nameprospecto.toLowerCase().contains(q) ||
+      final matchQ = q.isEmpty ||
+          l.nameprospecto.toLowerCase().contains(q) ||
           l.infoprospecto.toLowerCase().contains(q) ||
           l.estado.toLowerCase().contains(q);
       final matchTab = _filtroTab == 'Todos' ||
@@ -620,27 +761,41 @@ class _LeadsScreenState extends State<LeadsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(children: [
-                const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Oportunidades',
-                          style: TextStyle(fontSize: 12, color: _C.textGrey)),
-                      Text('Leads',
-                          style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: _C.textDark)),
-                    ]),
+                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Oportunidades',
+                      style: TextStyle(fontSize: 12, color: _C.textGrey)),
+                  Text('Leads',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: _C.textDark)),
+                ]),
                 const Spacer(),
-                _addButton(context),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LeadForm(firestoreService: widget.svc),
+                    ),
+                  ),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _C.blue,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child:
+                        const Icon(Icons.add, color: Colors.white, size: 22),
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 14),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _searchBar('Lead, empresa, estado...', (v) {
-                setState(() => _query = v);
-              }),
+              child: _searchBar(
+                  'Lead, empresa, estado...', (v) => setState(() => _query = v)),
             ),
             const SizedBox(height: 12),
             _filterTabs(
@@ -648,17 +803,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('${list.length} leads activos',
+              child: Text('${list.length} leads',
                   style: const TextStyle(fontSize: 13, color: _C.textGrey)),
             ),
             const SizedBox(height: 8),
             Expanded(
               child: list.isEmpty
-                  ? _emptyState('No hay leads registrados')
+                  ? _emptyState('No hay leads${_filtroTab != "Todos" ? " en estado \"$_filtroTab\"" : " registrados"}')
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: list.length,
-                      itemBuilder: (ctx, i) => _leadCard(ctx, list[i]),
+                      itemBuilder: (ctx, i) =>
+                          _leadCard(ctx, list[i]),
                     ),
             ),
           ],
@@ -672,92 +828,118 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final color = _colorFromInitials(initials);
     final estadoColor = _estadoColor(l.estado);
 
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BitacoraScreen(nombreLead: l.nameprospecto),
-        ),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _C.bgCard,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _C.divider),
-        ),
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+    return Dismissible(
+      key: Key(l.id ?? l.nameprospecto),
+      background: _swipeBg(
+          color: _C.blue,
+          icon: Icons.edit_outlined,
+          label: 'Editar',
+          alignment: Alignment.centerLeft),
+      secondaryBackground: _swipeBg(
+          color: _C.red,
+          icon: Icons.delete_outline_rounded,
+          label: 'Eliminar',
+          alignment: Alignment.centerRight),
+      confirmDismiss: (dir) async {
+        if (dir == DismissDirection.startToEnd) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  LeadForm(lead: l, firestoreService: widget.svc),
             ),
-            child: Center(
-              child: Text(initials,
-                  style: TextStyle(
-                      color: color, fontWeight: FontWeight.w700, fontSize: 15)),
-            ),
+          );
+          return false;
+        } else {
+          return await _confirmarEliminacion(
+              context, 'lead', l.nameprospecto);
+        }
+      },
+      onDismissed: (dir) {
+        if (dir == DismissDirection.endToStart && l.id != null) {
+          widget.svc.eliminarLead(l.id!);
+        }
+      },
+      child: GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BitacoraScreen(lead: l, svc: widget.svc),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(l.nameprospecto,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _C.textDark)),
-              const SizedBox(height: 2),
-              Text(l.infoprospecto.isEmpty ? l.nameprospecto : l.infoprospecto,
-                  style: const TextStyle(fontSize: 12, color: _C.textGrey)),
-              const SizedBox(height: 4),
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _C.bgCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _C.divider),
+          ),
+          child: Row(children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: Text(initials,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(l.nameprospecto,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _C.textDark)),
+                const SizedBox(height: 2),
+                Text(l.infoprospecto.isEmpty
+                    ? l.nameprospecto
+                    : l.infoprospecto,
+                    style: const TextStyle(fontSize: 12, color: _C.textGrey)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 11, color: _C.textGrey),
+                  const SizedBox(width: 4),
+                  Text(l.fechaFormateada,
+                      style: const TextStyle(fontSize: 11, color: _C.textGrey)),
+                ]),
+              ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              _statusChip(l.estado, estadoColor),
+              const SizedBox(height: 8),
               Row(children: [
-                const Icon(Icons.calendar_today_outlined,
-                    size: 11, color: _C.textGrey),
-                const SizedBox(width: 4),
-                Text(l.fecha.isEmpty ? '—' : l.fecha,
-                    style: const TextStyle(fontSize: 11, color: _C.textGrey)),
+                GestureDetector(
+                  onTap: () => _llamar(l.telefono),
+                  child: _iconAction(Icons.phone_outlined, _C.green),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () =>
+                      _enviarCorreo(l.correo, nombre: l.nameprospecto),
+                  child: _iconAction(Icons.mail_outline_rounded, _C.blue),
+                ),
               ]),
             ]),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            _statusChip(l.estado, estadoColor),
-            const SizedBox(height: 8),
-            Row(children: [
-              GestureDetector(
-                onTap: () => _llamar(l.telefono),
-                child: _iconAction(Icons.phone_outlined, _C.green),
-              ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => _enviarCorreo(l.correo, nombre: l.nameprospecto),
-                child: _iconAction(Icons.mail_outline_rounded, _C.blue),
-              ),
-            ]),
           ]),
-        ]),
+        ),
       ),
     );
   }
-
-  Color _estadoColor(String e) {
-    switch (e.toLowerCase()) {
-      case 'completado':
-        return _C.green;
-      case 'abierto':
-        return _C.amber;
-      case 'perdido':
-        return _C.red;
-      default:
-        return _C.textGrey;
-    }
-  }
 }
 
-// ─── Bitácora tab (placeholder) ───────────────────────────────────────────────
+// ─── Bitácora tab ─────────────────────────────────────────────────────────────
 class BitacoraTabScreen extends StatelessWidget {
   const BitacoraTabScreen({super.key});
 
@@ -780,9 +962,11 @@ class BitacoraTabScreen extends StatelessWidget {
                       color: _C.textDark)),
               SizedBox(height: 40),
               Center(
-                child: Text('Selecciona un lead para ver su bitácora.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _C.textGrey)),
+                child: Text(
+                  'Entra a un Lead para ver y\nagregar entradas de bitácora.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _C.textGrey),
+                ),
               ),
             ],
           ),
@@ -792,12 +976,17 @@ class BitacoraTabScreen extends StatelessWidget {
   }
 }
 
-// ─── Perfil tab (placeholder) ─────────────────────────────────────────────────
+// ─── Perfil ───────────────────────────────────────────────────────────────────
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final nombre = user?.displayName ?? 'Usuario';
+    final email = user?.email ?? '';
+    final initials = _initials(nombre);
+
     return Scaffold(
       backgroundColor: _C.bgPage,
       body: SafeArea(
@@ -823,17 +1012,17 @@ class PerfilScreen extends StatelessWidget {
                       color: _C.blue,
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: const Center(
-                      child: Text('JM',
-                          style: TextStyle(
+                    child: Center(
+                      child: Text(initials,
+                          style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                               fontSize: 24)),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text('Juan Martínez',
-                      style: TextStyle(
+                  Text(nombre,
+                      style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           color: _C.textDark)),
@@ -842,9 +1031,7 @@ class PerfilScreen extends StatelessWidget {
                 ]),
               ),
               const SizedBox(height: 32),
-              _profileItem(Icons.mail_outline_rounded, 'admin@admin.com'),
-              _profileItem(Icons.phone_outlined, '+504 9876-5432'),
-              _profileItem(Icons.business_outlined, 'RapiLead Corp.'),
+              _profileItem(Icons.mail_outline_rounded, email),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
@@ -852,17 +1039,19 @@ class PerfilScreen extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: () async {
                     await SessionManager.clearSession();
+                    await FirebaseAuth.instance.signOut();
                     if (context.mounted) {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        MaterialPageRoute(
+                            builder: (_) => const LoginPage()),
                       );
                     }
                   },
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Cerrar sesión',
-                      style:
-                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _C.red.withValues(alpha: 0.08),
                     foregroundColor: _C.red,
@@ -882,7 +1071,8 @@ class PerfilScreen extends StatelessWidget {
 
   Widget _profileItem(IconData icon, String text) => Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: _C.bgCard,
           borderRadius: BorderRadius.circular(14),
@@ -901,12 +1091,9 @@ class PerfilScreen extends StatelessWidget {
 }
 
 // ─── FAB ──────────────────────────────────────────────────────────────────────
-class MiFAB extends StatelessWidget {
-  final Function(Prospecto)? handleOnCreateProspecto;
-  final Function(Lead)? handleOnCreateLead;
-
-  const MiFAB(
-      {super.key, this.handleOnCreateProspecto, this.handleOnCreateLead});
+class _MiFAB extends StatelessWidget {
+  final FirestoreService svc;
+  const _MiFAB({required this.svc});
 
   @override
   Widget build(BuildContext context) {
@@ -925,11 +1112,7 @@ class MiFAB extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => CrearPersonaForm(
-                isProspecto: false,
-                handleOnCreateLead: handleOnCreateLead,
-              ),
-            ),
+                builder: (_) => LeadForm(firestoreService: svc)),
           ),
         ),
         SpeedDialChild(
@@ -940,11 +1123,7 @@ class MiFAB extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => CrearPersonaForm(
-                isProspecto: true,
-                handleOnCreateProspecto: handleOnCreateProspecto,
-              ),
-            ),
+                builder: (_) => ProspectoForm(firestoreService: svc)),
           ),
         ),
       ],
@@ -953,13 +1132,13 @@ class MiFAB extends StatelessWidget {
 }
 
 // ─── Helpers de UI ────────────────────────────────────────────────────────────
-
 Widget _searchBar(String hint, ValueChanged<String> onChanged) => TextField(
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
-        prefixIcon: const Icon(Icons.search, color: _C.textGrey, size: 20),
+        prefixIcon:
+            const Icon(Icons.search, color: _C.textGrey, size: 20),
         filled: true,
         fillColor: _C.bgCard,
         contentPadding:
@@ -990,21 +1169,21 @@ Widget _filterTabs(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: sel ? _C.blue : _C.bgCard,
                 borderRadius: BorderRadius.circular(20),
-                border:
-                    Border.all(color: sel ? _C.blue : _C.divider, width: 1.5),
+                border: Border.all(
+                    color: sel ? _C.blue : _C.divider, width: 1.5),
               ),
-              child: Text(
-                tabs[i],
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                  color: sel ? Colors.white : _C.textMedium,
-                ),
-              ),
+              child: Text(tabs[i],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                        sel ? FontWeight.w700 : FontWeight.w500,
+                    color: sel ? Colors.white : _C.textMedium,
+                  )),
             ),
           );
         },
@@ -1020,7 +1199,9 @@ Widget _statusChip(String label, Color color) => Container(
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700)),
     );
 
 Widget _iconAction(IconData icon, Color color) => Container(
@@ -1033,23 +1214,68 @@ Widget _iconAction(IconData icon, Color color) => Container(
       child: Icon(icon, color: color, size: 16),
     );
 
-Widget _addButton(BuildContext context) => Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: _C.blue,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Icon(Icons.add, color: Colors.white, size: 22),
-    );
-
 Widget _emptyState(String msg) => Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.inbox_outlined, size: 48, color: _C.textGrey),
         const SizedBox(height: 12),
-        Text(msg, style: const TextStyle(color: _C.textGrey, fontSize: 15)),
+        Text(msg,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _C.textGrey, fontSize: 15)),
       ]),
     );
+
+Widget _swipeBg({
+  required Color color,
+  required IconData icon,
+  required String label,
+  required Alignment alignment,
+}) =>
+    Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(height: 4),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+      ]),
+    );
+
+Future<bool> _confirmarEliminacion(
+    BuildContext context, String tipo, String nombre) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Eliminar $tipo'),
+          content: Text('¿Eliminar "$nombre"? Esta acción no se puede deshacer.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
 String _initials(String name) {
@@ -1074,23 +1300,35 @@ Color _colorFromInitials(String initials) {
   return colors[idx];
 }
 
-Future<void> _llamar(String telefono) async {
-  final uri = Uri(scheme: 'tel', path: telefono);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri);
+Color _estadoColor(String e) {
+  switch (e.toLowerCase()) {
+    case 'completado':
+      return _C.green;
+    case 'abierto':
+      return _C.amber;
+    case 'perdido':
+      return _C.red;
+    default:
+      return _C.textGrey;
   }
 }
 
+Future<void> _llamar(String telefono) async {
+  if (telefono.isEmpty) return;
+  final uri = Uri(scheme: 'tel', path: telefono);
+  if (await canLaunchUrl(uri)) await launchUrl(uri);
+}
+
 Future<void> _enviarCorreo(String email, {String? nombre}) async {
+  if (email.isEmpty) return;
   final uri = Uri(
     scheme: 'mailto',
     path: email,
     queryParameters: {
-      'subject': 'Seguimiento RapiLead${nombre != null ? " - $nombre" : ""}',
+      'subject':
+          'Seguimiento RapiLead${nombre != null ? " - $nombre" : ""}',
       'body': 'Hola${nombre != null ? " $nombre" : ""},\n\n',
     },
   );
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri);
-  }
+  if (await canLaunchUrl(uri)) await launchUrl(uri);
 }

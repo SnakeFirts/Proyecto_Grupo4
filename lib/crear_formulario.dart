@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/lead.dart';
 import 'models/prospecto.dart';
@@ -25,22 +26,19 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
 
   final _companiaNameProspectoController = TextEditingController();
   final _nombreInfoProspectoController = TextEditingController();
-  final _direccionFechaController = TextEditingController();
+  final _direccionController = TextEditingController();
   final _cargoDetalleController = TextEditingController();
   final _correoEstadoController = TextEditingController();
   final _telefonoController = TextEditingController();
   final _movilController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  DateTime? _fechaSeleccionada;
 
   @override
   void dispose() {
     _companiaNameProspectoController.dispose();
     _nombreInfoProspectoController.dispose();
-    _direccionFechaController.dispose();
+    _direccionController.dispose();
     _cargoDetalleController.dispose();
     _correoEstadoController.dispose();
     _telefonoController.dispose();
@@ -48,59 +46,56 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
     super.dispose();
   }
 
-  void _procesarGuardado() {
-    if (widget.isProspecto) {
-      if (widget.handleOnCreateProspecto != null) {
-        widget.handleOnCreateProspecto!(
-          Prospecto(
-            compania: _companiaNameProspectoController.text,
-            nombre: _nombreInfoProspectoController.text,
-            direccion: _direccionFechaController.text,
-            cargo: _cargoDetalleController.text,
-            correo: _correoEstadoController.text,
-            telefono: _telefonoController.text,
-            movil: _movilController.text,
-          ),
+  Future<void> _procesarGuardado() async {
+    final db = FirebaseFirestore.instance;
+
+    try {
+      if (widget.isProspecto) {
+        final prospecto = Prospecto(
+          compania: _companiaNameProspectoController.text,
+          nombre: _nombreInfoProspectoController.text,
+          direccion: _direccionController.text,
+          cargo: _cargoDetalleController.text,
+          correo: _correoEstadoController.text,
+          telefono: _telefonoController.text,
+          movil: _movilController.text,
         );
-      }
-    } else {
-      widget.handleOnCreateLead!(
-        Lead(
+
+        final docRef = await db.collection('prospectos').add(prospecto.toMap());
+        widget.handleOnCreateProspecto?.call(prospecto.copyWith(id: docRef.id));
+      } else {
+        final lead = Lead(
           nameprospecto: _companiaNameProspectoController.text,
           infoprospecto: _nombreInfoProspectoController.text,
-          fecha: _direccionFechaController.text,
+          fecha: _fechaSeleccionada,
           detalle: _cargoDetalleController.text,
           estado: _correoEstadoController.text,
-          telefono: _telefonoController.text,
-          correo: _movilController
-              .text, 
+        );
+
+        final docRef = await db.collection('leads').add(lead.toMap());
+        widget.handleOnCreateLead?.call(lead.copyWith(id: docRef.id));
+      }
+
+      String modelo = widget.isProspecto ? 'Prospecto' : 'Lead';
+      String nombreCreado = widget.isProspecto
+          ? _nombreInfoProspectoController.text
+          : _companiaNameProspectoController.text;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.blue,
+          content: Text('Se creó con éxito el $modelo: $nombreCreado'),
         ),
       );
-      if (widget.handleOnCreateLead != null) {
-        widget.handleOnCreateLead!(
-          Lead(
-            nameprospecto: _companiaNameProspectoController.text,
-            infoprospecto: _nombreInfoProspectoController.text,
-            fecha: _direccionFechaController.text,
-            detalle: _cargoDetalleController.text,
-            estado: _correoEstadoController.text,
-          ),
-        );
-      }
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('Error al guardar: $e'),
+        ),
+      );
     }
-
-    String modelo = widget.isProspecto ? 'Prospecto' : 'Lead';
-    String nombreCreado = widget.isProspecto
-        ? _nombreInfoProspectoController.text
-        : _companiaNameProspectoController.text;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.blue,
-        content: Text('Se creó con éxito el $modelo: $nombreCreado'),
-      ),
-    );
-    Navigator.pop(context);
   }
 
   @override
@@ -119,8 +114,8 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                 TextFormField(
                   controller: _companiaNameProspectoController,
                   decoration: InputDecoration(
-                      labelText:
-                          isP ? 'Compañía' : 'Nombre Compañía Prospecto'),
+                    labelText: isP ? 'Compañía' : 'Nombre Compañía Prospecto',
+                  ),
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
@@ -137,19 +132,68 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-                TextFormField(
-                  controller: _direccionFechaController,
-                  maxLines: isP ? 3 : 1,
-                  minLines: isP ? 2 : 1,
-                  keyboardType:
-                      isP ? TextInputType.multiline : TextInputType.text,
-                  decoration: InputDecoration(
-                    labelText: isP ? 'Dirección' : 'Fecha',
-                    alignLabelWithHint: true,
+                if (isP)
+                  TextFormField(
+                    controller: _direccionController,
+                    maxLines: 3,
+                    minLines: 2,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      labelText: 'Dirección',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) =>
+                        v!.isEmpty ? 'Por favor complete este campo' : null,
+                  )
+                else
+                  FormField<DateTime>(
+                    validator: (_) => _fechaSeleccionada == null
+                        ? 'Por favor seleccione una fecha'
+                        : null,
+                    builder: (state) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            _fechaSeleccionada == null
+                                ? 'Seleccionar Fecha'
+                                : '${_fechaSeleccionada!.toLocal()}'
+                                    .split(' ')[0],
+                            style: TextStyle(
+                              color: _fechaSeleccionada == null
+                                  ? Colors.grey
+                                  : null,
+                            ),
+                          ),
+                          trailing: const Icon(Icons.calendar_today),
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (picked != null) {
+                              setState(() => _fechaSeleccionada = picked);
+                              state.didChange(picked);
+                            }
+                          },
+                        ),
+                        if (state.errorText != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 12, top: 4),
+                            child: Text(
+                              state.errorText!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                  validator: (v) =>
-                      v!.isEmpty ? 'Por favor complete este campo' : null,
-                ),
                 TextFormField(
                   controller: _cargoDetalleController,
                   maxLines: !isP ? 4 : 1,
@@ -232,9 +276,9 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                         borderRadius: BorderRadius.circular(28.0),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       if (_formKey.currentState!.validate()) {
-                        _procesarGuardado();
+                        await _procesarGuardado();
                       }
                     },
                     icon: const Icon(Icons.check_circle_outline, size: 24),

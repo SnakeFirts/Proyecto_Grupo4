@@ -1,20 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'models/lead.dart';
 import 'models/prospecto.dart';
 import 'models/estado_opciones.dart';
+import 'services/firestore_service.dart';
 
 class CrearPersonaForm extends StatefulWidget {
   final bool isProspecto;
-
   final Function(Prospecto)? handleOnCreateProspecto;
   final Function(Lead)? handleOnCreateLead;
+  final Prospecto? prospectoInicial;
+  final Lead? leadInicial;
 
   const CrearPersonaForm({
     super.key,
     required this.isProspecto,
     this.handleOnCreateProspecto,
     this.handleOnCreateLead,
+    this.prospectoInicial,
+    this.leadInicial,
   });
 
   @override
@@ -34,6 +38,73 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
 
   DateTime? _fechaSeleccionada;
 
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  String? _activeField;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isProspecto && widget.prospectoInicial != null) {
+      final p = widget.prospectoInicial!;
+      _companiaNameProspectoController.text = p.compania;
+      _nombreInfoProspectoController.text = p.nombre;
+      _direccionController.text = p.direccion;
+      _cargoDetalleController.text = p.cargo;
+      _correoEstadoController.text = p.correo;
+      _telefonoController.text = p.telefono;
+      _movilController.text = p.movil;
+    } else if (!widget.isProspecto && widget.leadInicial != null) {
+      final l = widget.leadInicial!;
+      _companiaNameProspectoController.text = l.nameprospecto;
+      _nombreInfoProspectoController.text = l.infoprospecto;
+      _cargoDetalleController.text = l.detalle;
+      _correoEstadoController.text = l.estado;
+      _fechaSeleccionada = l.fecha;
+    } else if (!widget.isProspecto) {
+      _correoEstadoController.text = 'Abierto';
+    }
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final enabled = await _speechToText.initialize();
+    setState(() => _speechEnabled = enabled);
+  }
+
+  Future<void> _toggleListening(
+      String fieldId, TextEditingController controller) async {
+    if (_activeField == fieldId && _speechToText.isListening) {
+      await _speechToText.stop();
+      setState(() => _activeField = null);
+    } else {
+      if (_speechToText.isListening) await _speechToText.stop();
+      await _speechToText.listen(
+        onResult: (result) {
+          setState(() => controller.text = result.recognizedWords);
+        },
+        localeId: 'es_HN',
+      );
+      setState(() => _activeField = fieldId);
+    }
+  }
+
+  bool _isListening(String fieldId) =>
+      _activeField == fieldId && _speechToText.isListening;
+
+  Widget _micButton(String fieldId, TextEditingController controller) {
+    if (!_speechEnabled) return const SizedBox.shrink();
+    final listening = _isListening(fieldId);
+    return IconButton(
+      icon: Icon(
+        listening ? Icons.mic : Icons.mic_none,
+        color: listening ? Colors.red : Colors.blue,
+      ),
+      tooltip: listening ? 'Detener' : 'Dictar',
+      onPressed: () => _toggleListening(fieldId, controller),
+    );
+  }
+
   @override
   void dispose() {
     _companiaNameProspectoController.dispose();
@@ -43,15 +114,29 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
     _correoEstadoController.dispose();
     _telefonoController.dispose();
     _movilController.dispose();
+    _speechToText.stop();
     super.dispose();
   }
 
   Future<void> _procesarGuardado() async {
-    final db = FirebaseFirestore.instance;
+    final service = FirestoreService();
+    final esEdicion = widget.isProspecto
+        ? widget.prospectoInicial?.id != null
+        : widget.leadInicial?.id != null;
 
     try {
       if (widget.isProspecto) {
-        final prospecto = Prospecto(
+        final prospecto = (widget.prospectoInicial ??
+                Prospecto(
+                  compania: '',
+                  nombre: '',
+                  direccion: '',
+                  cargo: '',
+                  correo: '',
+                  telefono: '',
+                  movil: '',
+                ))
+            .copyWith(
           compania: _companiaNameProspectoController.text,
           nombre: _nombreInfoProspectoController.text,
           direccion: _direccionController.text,
@@ -61,10 +146,22 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
           movil: _movilController.text,
         );
 
-        final docRef = await db.collection('prospectos').add(prospecto.toMap());
-        widget.handleOnCreateProspecto?.call(prospecto.copyWith(id: docRef.id));
+        if (esEdicion) {
+          await service.actualizarProspecto(prospecto);
+          widget.handleOnCreateProspecto?.call(prospecto);
+        } else {
+          final id = await service.crearProspecto(prospecto);
+          widget.handleOnCreateProspecto?.call(prospecto.copyWith(id: id));
+        }
       } else {
-        final lead = Lead(
+        final lead = (widget.leadInicial ??
+                Lead(
+                  nameprospecto: '',
+                  infoprospecto: '',
+                  detalle: '',
+                  estado: 'Abierto',
+                ))
+            .copyWith(
           nameprospecto: _companiaNameProspectoController.text,
           infoprospecto: _nombreInfoProspectoController.text,
           fecha: _fechaSeleccionada,
@@ -72,38 +169,45 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
           estado: _correoEstadoController.text,
         );
 
-        final docRef = await db.collection('leads').add(lead.toMap());
-        widget.handleOnCreateLead?.call(lead.copyWith(id: docRef.id));
+        if (esEdicion) {
+          await service.actualizarLead(lead);
+          widget.handleOnCreateLead?.call(lead);
+        } else {
+          final id = await service.crearLead(lead);
+          widget.handleOnCreateLead?.call(lead.copyWith(id: id));
+        }
       }
 
-      String modelo = widget.isProspecto ? 'Prospecto' : 'Lead';
-      String nombreCreado = widget.isProspecto
-          ? _nombreInfoProspectoController.text
-          : _companiaNameProspectoController.text;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.blue,
-          content: Text('Se creó con éxito el $modelo: $nombreCreado'),
-        ),
-      );
+      final modelo = widget.isProspecto ? 'Prospecto' : 'Lead';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: Colors.blue,
+        content: Text(esEdicion ? '$modelo actualizado' : '$modelo creado'),
+      ));
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red,
-          content: Text('Error al guardar: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: Colors.red,
+        content: Text('Error al guardar: $e'),
+      ));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isP = widget.isProspecto;
+    final isP = widget.isProspecto;
+    final esEdicion = isP
+        ? widget.prospectoInicial?.id != null
+        : widget.leadInicial?.id != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(isP ? 'Crear Prospecto' : 'Crear Lead')),
+      appBar: AppBar(
+        title: Text(
+          isP
+              ? (esEdicion ? 'Editar Prospecto' : 'Crear Prospecto')
+              : (esEdicion ? 'Editar Lead' : 'Crear Lead'),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -128,6 +232,8 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   decoration: InputDecoration(
                     labelText: isP ? 'Nombre' : 'Información Prospecto',
                     alignLabelWithHint: true,
+                    suffixIcon:
+                        _micButton('info', _nombreInfoProspectoController),
                   ),
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
@@ -138,15 +244,17 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                     maxLines: 3,
                     minLines: 2,
                     keyboardType: TextInputType.multiline,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Dirección',
                       alignLabelWithHint: true,
+                      suffixIcon: _micButton('direccion', _direccionController),
                     ),
                     validator: (v) =>
                         v!.isEmpty ? 'Por favor complete este campo' : null,
                   )
                 else
                   FormField<DateTime>(
+                    initialValue: _fechaSeleccionada,
                     validator: (_) => _fechaSeleccionada == null
                         ? 'Por favor seleccione una fecha'
                         : null,
@@ -170,7 +278,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                           onTap: () async {
                             final picked = await showDatePicker(
                               context: context,
-                              initialDate: DateTime.now(),
+                              initialDate: _fechaSeleccionada ?? DateTime.now(),
                               firstDate: DateTime(2020),
                               lastDate: DateTime(2030),
                             );
@@ -203,51 +311,53 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   decoration: InputDecoration(
                     labelText: isP ? 'Cargo' : 'Detalle',
                     alignLabelWithHint: true,
+                    suffixIcon: _micButton('detalle', _cargoDetalleController),
                   ),
                   validator: (v) =>
                       v!.isEmpty ? 'Por favor complete este campo' : null,
                 ),
-                isP
-                    ? TextFormField(
-                        controller: _correoEstadoController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Correo',
-                          hintText: 'ejemplo@correo.com',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return 'Por favor complete este campo';
-                          }
-                          final emailRegex =
-                              RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                          if (!emailRegex.hasMatch(v)) {
-                            return 'Por favor ingrese un correo válido';
-                          }
-                          return null;
-                        },
-                      )
-                    : DropdownButtonFormField<String>(
-                        initialValue: EstadoOpciones.lista
-                                .contains(_correoEstadoController.text)
-                            ? _correoEstadoController.text
-                            : null,
-                        decoration: const InputDecoration(labelText: 'Estado'),
-                        items: EstadoOpciones.lista
-                            .map((estado) => DropdownMenuItem(
-                                  value: estado,
-                                  child: Text(estado),
-                                ))
-                            .toList(),
-                        onChanged: (nuevoEstado) {
-                          if (nuevoEstado != null) {
-                            _correoEstadoController.text = nuevoEstado;
-                          }
-                        },
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Por favor seleccione un estado'
-                            : null,
-                      ),
+                if (isP)
+                  TextFormField(
+                    controller: _correoEstadoController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo',
+                      hintText: 'ejemplo@correo.com',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Por favor complete este campo';
+                      }
+                      final emailRegex =
+                          RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                      if (!emailRegex.hasMatch(v)) {
+                        return 'Por favor ingrese un correo válido';
+                      }
+                      return null;
+                    },
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: EstadoOpciones.lista
+                            .contains(_correoEstadoController.text)
+                        ? _correoEstadoController.text
+                        : null,
+                    decoration: const InputDecoration(labelText: 'Estado'),
+                    items: EstadoOpciones.lista
+                        .map((estado) => DropdownMenuItem(
+                              value: estado,
+                              child: Text(estado),
+                            ))
+                        .toList(),
+                    onChanged: (nuevoEstado) {
+                      if (nuevoEstado != null) {
+                        _correoEstadoController.text = nuevoEstado;
+                      }
+                    },
+                    validator: (v) => v == null || v.isEmpty
+                        ? 'Por favor seleccione un estado'
+                        : null,
+                  ),
                 if (isP) ...[
                   TextFormField(
                     controller: _telefonoController,
@@ -281,10 +391,15 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                         await _procesarGuardado();
                       }
                     },
-                    icon: const Icon(Icons.check_circle_outline, size: 24),
-                    label: const Text(
-                      'Crear',
-                      style: TextStyle(
+                    icon: Icon(
+                      esEdicion
+                          ? Icons.save_outlined
+                          : Icons.check_circle_outline,
+                      size: 24,
+                    ),
+                    label: Text(
+                      esEdicion ? 'Guardar cambios' : 'Crear',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),

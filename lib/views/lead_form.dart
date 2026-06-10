@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../models/lead.dart';
 import '../models/prospecto.dart';
 import '../models/estado_opciones.dart';
@@ -65,6 +66,11 @@ class _LeadFormState extends State<LeadForm> {
   String _estadoSeleccionado = 'Abierto';
   bool _loading = false;
 
+  // ── Speech-to-text ──────────────────────────────────────────────────────────
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  String? _activeField;
+
   bool get _editando => widget.lead != null;
   bool get _desdeProspecto => widget.prospectoOrigen != null;
 
@@ -74,19 +80,57 @@ class _LeadFormState extends State<LeadForm> {
     final l = widget.lead;
     final p = widget.prospectoOrigen;
 
-    // Si viene de conversión de prospecto, prellenar
     _nombreCtrl =
         TextEditingController(text: l?.nameprospecto ?? p?.nombre ?? '');
     _infoCtrl =
         TextEditingController(text: l?.infoprospecto ?? p?.compania ?? '');
     _telefonoCtrl =
         TextEditingController(text: l?.telefono ?? p?.telefono ?? '');
-    _correoCtrl =
-        TextEditingController(text: l?.correo ?? p?.correo ?? '');
+    _correoCtrl = TextEditingController(text: l?.correo ?? p?.correo ?? '');
     _detalleCtrl = TextEditingController(text: l?.detalle ?? '');
 
     _fechaSeleccionada = l?.fecha;
     _estadoSeleccionado = l?.estado ?? 'Abierto';
+
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final enabled = await _speechToText.initialize();
+    if (mounted) setState(() => _speechEnabled = enabled);
+  }
+
+  Future<void> _toggleListening(
+      String fieldId, TextEditingController ctrl) async {
+    if (_activeField == fieldId && _speechToText.isListening) {
+      await _speechToText.stop();
+      setState(() => _activeField = null);
+    } else {
+      if (_speechToText.isListening) await _speechToText.stop();
+      await _speechToText.listen(
+        onResult: (result) =>
+            setState(() => ctrl.text = result.recognizedWords),
+        localeId: 'es_HN',
+      );
+      setState(() => _activeField = fieldId);
+    }
+  }
+
+  /// Icono de micrófono en el estilo de _C (usado como suffixIcon).
+  Widget _micIcon(String fieldId, TextEditingController ctrl) {
+    if (!_speechEnabled) return const SizedBox.shrink();
+    final active = _activeField == fieldId && _speechToText.isListening;
+    return GestureDetector(
+      onTap: () => _toggleListening(fieldId, ctrl),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Icon(
+          active ? Icons.mic_rounded : Icons.mic_none_rounded,
+          color: active ? _C.red : _C.label,
+          size: 20,
+        ),
+      ),
+    );
   }
 
   @override
@@ -96,27 +140,16 @@ class _LeadFormState extends State<LeadForm> {
     _telefonoCtrl.dispose();
     _correoCtrl.dispose();
     _detalleCtrl.dispose();
+    _speechToText.stop();
     super.dispose();
   }
 
   Future<void> _seleccionarFecha() async {
-    final hoy = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _fechaSeleccionada ?? hoy,
+      initialDate: _fechaSeleccionada ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      locale: const Locale('es', 'HN'),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: _C.blue,
-            onPrimary: Colors.white,
-            surface: _C.bgCard,
-          ),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _fechaSeleccionada = picked);
   }
@@ -151,7 +184,9 @@ class _LeadFormState extends State<LeadForm> {
           SnackBar(
             backgroundColor: _C.blue,
             content: Text(
-              _editando ? 'Lead actualizado exitosamente' : 'Lead creado exitosamente',
+              _editando
+                  ? 'Lead actualizado exitosamente'
+                  : 'Lead creado exitosamente',
             ),
           ),
         );
@@ -249,6 +284,7 @@ class _LeadFormState extends State<LeadForm> {
                     children: [
                       _field(
                         ctrl: _nombreCtrl,
+                        fieldId: 'nombre',
                         label: 'Nombre del contacto',
                         icon: Icons.person_outline_rounded,
                         hint: 'Ej. Carlos López',
@@ -257,6 +293,7 @@ class _LeadFormState extends State<LeadForm> {
                       ),
                       _field(
                         ctrl: _infoCtrl,
+                        fieldId: 'info',
                         label: 'Empresa / Información',
                         icon: Icons.business_outlined,
                         hint: 'Ej. Ferretería Central S.A.',
@@ -265,10 +302,12 @@ class _LeadFormState extends State<LeadForm> {
                       ),
                       _field(
                         ctrl: _telefonoCtrl,
+                        fieldId: 'telefono',
                         label: 'Teléfono',
                         icon: Icons.phone_outlined,
                         hint: '+504 9999-0000',
                         keyboardType: TextInputType.phone,
+                        showMic: false, // no tiene sentido dictar un teléfono
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d\s\+\-\(\)]'))
@@ -276,10 +315,12 @@ class _LeadFormState extends State<LeadForm> {
                       ),
                       _field(
                         ctrl: _correoCtrl,
+                        fieldId: 'correo',
                         label: 'Correo electrónico',
                         icon: Icons.mail_outline_rounded,
                         hint: 'contacto@empresa.com',
                         keyboardType: TextInputType.emailAddress,
+                        showMic: false, // no tiene sentido dictar un correo
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return null;
                           if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$')
@@ -400,6 +441,7 @@ class _LeadFormState extends State<LeadForm> {
                           icon: Icons.notes_rounded,
                           hint:
                               'Describe la oportunidad, necesidades del cliente...',
+                          suffix: _micIcon('detalle', _detalleCtrl),
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -464,6 +506,7 @@ class _LeadFormState extends State<LeadForm> {
 
   Widget _field({
     required TextEditingController ctrl,
+    required String fieldId,
     required String label,
     required IconData icon,
     String? hint,
@@ -471,6 +514,7 @@ class _LeadFormState extends State<LeadForm> {
     TextCapitalization textCapitalization = TextCapitalization.none,
     List<TextInputFormatter>? inputFormatters,
     bool required = false,
+    bool showMic = true,
     String? Function(String?)? validator,
   }) {
     return Padding(
@@ -483,12 +527,15 @@ class _LeadFormState extends State<LeadForm> {
           textCapitalization: textCapitalization,
           inputFormatters: inputFormatters,
           textInputAction: TextInputAction.next,
-          decoration: _deco(icon: icon, hint: hint),
+          decoration: _deco(
+            icon: icon,
+            hint: hint,
+            suffix: showMic ? _micIcon(fieldId, ctrl) : null,
+          ),
           validator: validator ??
               (required
-                  ? (v) => (v == null || v.trim().isEmpty)
-                      ? 'Campo requerido'
-                      : null
+                  ? (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Campo requerido' : null
                   : null),
         ),
       ]),
@@ -514,11 +561,16 @@ class _LeadFormState extends State<LeadForm> {
         ]),
       );
 
-  InputDecoration _deco({required IconData icon, String? hint}) =>
+  InputDecoration _deco({
+    required IconData icon,
+    String? hint,
+    Widget? suffix,
+  }) =>
       InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
         prefixIcon: Icon(icon, color: _C.label, size: 20),
+        suffixIcon: suffix,
         filled: true,
         fillColor: _C.bgCard,
         contentPadding:

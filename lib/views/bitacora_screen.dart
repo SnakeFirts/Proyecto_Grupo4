@@ -83,8 +83,8 @@ class _BitacoraView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                         const Text('Bitácora',
-                            style:
-                                TextStyle(fontSize: 12, color: _C.textGrey)),
+                            style: TextStyle(
+                                fontSize: 12, color: _C.textGrey)),
                         Text(
                           lead.nameprospecto,
                           style: const TextStyle(
@@ -137,7 +137,8 @@ class _BitacoraView extends StatelessWidget {
                 Expanded(
                   child: lead.id == null
                       ? const Center(
-                          child: Text('Lead sin ID — guarda primero el lead.',
+                          child: Text(
+                              'Lead sin ID — guarda primero el lead.',
                               style: TextStyle(color: _C.textGrey)))
                       : StreamBuilder<List<Map<String, dynamic>>>(
                           stream: svc.streamBitacoras(lead.id!),
@@ -153,12 +154,12 @@ class _BitacoraView extends StatelessWidget {
                               return _emptyHistorial();
                             }
                             return ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 16, 20, 0),
                               itemCount: entradas.length,
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 10),
-                              itemBuilder: (ctx, i) =>
-                                  _EntradaCard(
+                              itemBuilder: (ctx, i) => _EntradaCard(
                                 entrada: entradas[i],
                                 leadId: lead.id!,
                                 svc: svc,
@@ -180,12 +181,17 @@ class _BitacoraView extends StatelessWidget {
   }
 
   Widget _emptyHistorial() => Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.menu_book_outlined, size: 48, color: _C.textGrey),
+        child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+          const Icon(Icons.menu_book_outlined,
+              size: 48, color: _C.textGrey),
           const SizedBox(height: 12),
           const Text('Sin entradas aún',
               style: TextStyle(
-                  color: _C.textDark, fontWeight: FontWeight.w600, fontSize: 15)),
+                  color: _C.textDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15)),
           const SizedBox(height: 4),
           const Text('Registra la primera interacción abajo.',
               style: TextStyle(color: _C.textGrey, fontSize: 13)),
@@ -257,7 +263,8 @@ class _EntradaCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _C.divider),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
             width: 36,
@@ -280,8 +287,8 @@ class _EntradaCard extends StatelessWidget {
                       color: color)),
               Row(children: [
                 Text(fecha,
-                    style:
-                        const TextStyle(fontSize: 11, color: _C.textGrey)),
+                    style: const TextStyle(
+                        fontSize: 11, color: _C.textGrey)),
                 if (editada) ...[
                   const SizedBox(width: 6),
                   const Text('(editado)',
@@ -303,7 +310,8 @@ class _EntradaCard extends StatelessWidget {
               const PopupMenuItem(
                 value: 'edit',
                 child: Row(children: [
-                  Icon(Icons.edit_outlined, size: 18, color: _C.blue),
+                  Icon(Icons.edit_outlined,
+                      size: 18, color: _C.blue),
                   SizedBox(width: 8),
                   Text('Editar'),
                 ]),
@@ -314,7 +322,8 @@ class _EntradaCard extends StatelessWidget {
                   Icon(Icons.delete_outline_rounded,
                       size: 18, color: _C.red),
                   SizedBox(width: 8),
-                  Text('Eliminar', style: TextStyle(color: _C.red)),
+                  Text('Eliminar',
+                      style: TextStyle(color: _C.red)),
                 ]),
               ),
             ],
@@ -332,15 +341,18 @@ class _EntradaCard extends StatelessWidget {
                         '¿Eliminar esta entrada? No se puede deshacer.'),
                     actions: [
                       TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
+                          onPressed: () =>
+                              Navigator.pop(ctx, false),
                           child: const Text('Cancelar')),
                       ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
+                        onPressed: () =>
+                            Navigator.pop(ctx, true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _C.red,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                              borderRadius:
+                                  BorderRadius.circular(12)),
                         ),
                         child: const Text('Eliminar'),
                       ),
@@ -349,7 +361,8 @@ class _EntradaCard extends StatelessWidget {
                 );
                 if (ok == true) {
                   await svc.eliminarBitacora(
-                      leadId: leadId, bitacoraId: entrada['id']);
+                      leadId: leadId,
+                      bitacoraId: entrada['id']);
                 }
               }
             },
@@ -359,9 +372,7 @@ class _EntradaCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(comentario,
               style: const TextStyle(
-                  fontSize: 13,
-                  color: _C.textMedium,
-                  height: 1.4)),
+                  fontSize: 13, color: _C.textMedium, height: 1.4)),
         ],
         if (entrada['latitud'] != null) ...[
           const SizedBox(height: 8),
@@ -372,7 +383,8 @@ class _EntradaCard extends StatelessWidget {
             Text(
               'Lat: ${(entrada['latitud'] as num).toStringAsFixed(4)} | '
               'Lon: ${(entrada['longitud'] as num).toStringAsFixed(4)}',
-              style: const TextStyle(fontSize: 11, color: _C.textGrey),
+              style:
+                  const TextStyle(fontSize: 11, color: _C.textGrey),
             ),
           ]),
         ],
@@ -397,7 +409,8 @@ void _mostrarEditorEntrada(
     isScrollControlled: true,
     backgroundColor: const Color(0xFFFFFFFF),
     shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) {
       return StatefulBuilder(builder: (ctx, setS) {
         return Padding(
@@ -425,10 +438,12 @@ void _mostrarEditorEntrada(
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
                           color: tipo == t
-                              ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
+                              ? const Color(0xFF3B82F6)
+                                  .withValues(alpha: 0.1)
                               : const Color(0xFFFFFFFF),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
@@ -457,7 +472,8 @@ void _mostrarEditorEntrada(
                 minLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Comentario...',
-                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  hintStyle:
+                      const TextStyle(color: Color(0xFF94A3B8)),
                   filled: true,
                   fillColor: const Color(0xFFF0F4FF),
                   border: OutlineInputBorder(
@@ -497,7 +513,8 @@ void _mostrarEditorEntrada(
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2))
                       : const Text('Guardar cambios',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+                          style:
+                              TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -537,7 +554,7 @@ class _NuevaEntradaPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Tipo de interacción ────────────────────────────────────────────
+          // ── Tipo de interacción ──────────────────────────────────────────
           Row(children: [
             InteractionChip(
               titulo: 'Llamada',
@@ -560,7 +577,7 @@ class _NuevaEntradaPanel extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
 
-          // ── GPS si es Visita ──────────────────────────────────────────────
+          // ── GPS si es Visita ─────────────────────────────────────────────
           if (controller.tipoSeleccionado == 'Visita') ...[
             GpsCard(
               cargando: controller.cargandoGps,
@@ -570,27 +587,86 @@ class _NuevaEntradaPanel extends StatelessWidget {
             const SizedBox(height: 12),
           ],
 
-          // ── Comentario ────────────────────────────────────────────────────
-          TextField(
-            controller: controller.comentarioController,
-            maxLines: 3,
-            minLines: 2,
-            decoration: InputDecoration(
-              hintText: controller.getHint(),
-              hintStyle: const TextStyle(color: _C.textGrey, fontSize: 13),
-              filled: true,
-              fillColor: _C.bgPage,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+          // ── Comentario + micrófono (solo en Llamada) ─────────────────────
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              TextField(
+                controller: controller.comentarioController,
+                maxLines: 3,
+                minLines: 2,
+                decoration: InputDecoration(
+                  hintText: controller.getHint(),
+                  hintStyle: const TextStyle(
+                      color: _C.textGrey, fontSize: 13),
+                  filled: true,
+                  fillColor: _C.bgPage,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
-            ),
+              // Micrófono solo en Llamada — mismo patrón que tu compañero
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      controller.isListening
+                          ? 'Escuchando...'
+                          : 'Dictar nota',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: controller.isListening
+                            ? _C.red
+                            : _C.textGrey,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () {
+                        if (controller.isListening) {
+                          controller.stopListening();
+                        } else {
+                          controller.startListening();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: controller.isListening
+                              ? _C.red.withValues(alpha: 0.1)
+                              : _C.blue.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: controller.isListening
+                                ? _C.red.withValues(alpha: 0.3)
+                                : _C.blue.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Icon(
+                          controller.isListening
+                              ? Icons.mic_rounded
+                              : Icons.mic_none_rounded,
+                          color: controller.isListening
+                              ? _C.red
+                              : _C.blue,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+
+            ],
           ),
           const SizedBox(height: 12),
 
-          // ── Botón registrar ───────────────────────────────────────────────
+          // ── Botón registrar ──────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             height: 48,

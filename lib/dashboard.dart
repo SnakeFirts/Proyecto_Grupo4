@@ -190,7 +190,7 @@ class _BottomNav extends StatelessWidget {
       (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
       (Icons.person_add_outlined, Icons.person_add_rounded, 'Prospectos'),
       (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Leads'),
-      (Icons.menu_book_outlined, Icons.menu_book_rounded, 'Bitácora'),
+      (Icons.swipe_outlined, Icons.swipe, 'Swiper'),
       (Icons.person_outline, Icons.person_rounded, 'Perfil'),
     ];
 
@@ -1115,40 +1115,469 @@ class _LeadsScreenState extends State<LeadsScreen> {
 }
 
 // ─── Bitácora tab ─────────────────────────────────────────────────────────────
-class BitacoraTabScreen extends StatelessWidget {
+class BitacoraTabScreen extends StatefulWidget {
   const BitacoraTabScreen({super.key});
 
   @override
+  State<BitacoraTabScreen> createState() => _BitacoraTabScreenState();
+}
+
+class _BitacoraTabScreenState extends State<BitacoraTabScreen> {
+  final _svc = FirestoreService();
+
+  Future<void> _cambiarEstado(Lead lead, String nuevoEstado) async {
+    final updated = Lead(
+      id: lead.id,
+      nameprospecto: lead.nameprospecto,
+      prospectoId: lead.prospectoId,
+      infoprospecto: lead.infoprospecto,
+      fecha: lead.fecha,
+      detalle: lead.detalle,
+      estado: nuevoEstado,
+      telefono: lead.telefono,
+      correo: lead.correo,
+      fechaCreacion: lead.fechaCreacion,
+    );
+    await _svc.actualizarLead(updated);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: _C.bgPage,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Gestión rápida',
+                      style: TextStyle(fontSize: 12, color: _C.textGrey)),
+                  Text('Swiper de Leads',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: _C.textDark)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<Lead>>(
+                stream: _svc.streamLeads(),
+                builder: (ctx, snap) {
+                  final leads = snap.data ?? [];
+                  if (leads.isEmpty) {
+                    return _emptyState('No hay leads registrados');
+                  }
+                  return _LeadCardStack(
+                    leads: leads,
+                    svc: _svc,
+                    onCambiarEstado: _cambiarEstado,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Stack de cards con drag ──────────────────────────────────────────────────
+class _LeadCardStack extends StatefulWidget {
+  final List<Lead> leads;
+  final FirestoreService svc;
+  final Future<void> Function(Lead, String) onCambiarEstado;
+
+  const _LeadCardStack({
+    required this.leads,
+    required this.svc,
+    required this.onCambiarEstado,
+  });
+
+  @override
+  State<_LeadCardStack> createState() => _LeadCardStackState();
+}
+
+class _LeadCardStackState extends State<_LeadCardStack> {
+  int _index = 0;
+  Offset _drag = Offset.zero;
+
+  static const double _threshold = 100;
+  static const double _thresholdDown = 80;
+
+  String? _getSwipeEstado() {
+    if (_drag.dx < -_threshold) return 'Abierto';
+    if (_drag.dx > _threshold) return 'Completado';
+    if (_drag.dy > _thresholdDown) return 'Perdido';
+    return null;
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _drag += details.delta;
+    });
+  }
+
+  Future<void> _onDragEnd(DragEndDetails details) async {
+    final estado = _getSwipeEstado();
+
+    if (estado == null) {
+      setState(() {
+        _drag = Offset.zero;
+      });
+      return;
+    }
+
+    final lead = widget.leads[_index];
+
+    setState(() {
+      _index = (_index + 1) % widget.leads.length;
+      _drag = Offset.zero;
+    });
+
+    widget.onCambiarEstado(lead, estado);
+  }
+
+  Future<void> _swipeProgramatico(String estado) async {
+    final lead = widget.leads[_index];
+
+    setState(() {
+      _index = (_index + 1) % widget.leads.length;
+      _drag = Offset.zero;
+    });
+
+    widget.onCambiarEstado(lead, estado);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leads = widget.leads;
+
+    if (leads.isEmpty) {
+      return _emptyState('No hay leads');
+    }
+
+    if (_index >= leads.length) {
+      _index = 0;
+    }
+
+    final current = leads[_index];
+    final next = leads[(_index + 1) % leads.length];
+
+    final swipeEstado = _getSwipeEstado();
+
+    Color? overlayColor;
+    String? overlayLabel;
+    IconData? overlayIcon;
+
+    if (swipeEstado == 'Abierto') {
+      overlayColor = _C.amber;
+      overlayLabel = 'Abierto';
+      overlayIcon = Icons.radio_button_unchecked_rounded;
+    } else if (swipeEstado == 'Completado') {
+      overlayColor = _C.green;
+      overlayLabel = 'Completado';
+      overlayIcon = Icons.check_circle_outline_rounded;
+    } else if (swipeEstado == 'Perdido') {
+      overlayColor = _C.red;
+      overlayLabel = 'Perdido';
+      overlayIcon = Icons.cancel_outlined;
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Registro',
-                  style: TextStyle(fontSize: 12, color: _C.textGrey)),
-              Text('Bitácora',
-                  style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: _C.textDark)),
-              SizedBox(height: 40),
-              Center(
-                child: Text(
-                  'Entra a un Lead para ver y\nagregar entradas de bitácora.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: _C.textGrey),
+              _hintChip(Icons.arrow_back_rounded, 'Abierto', _C.amber),
+              _hintChip(Icons.arrow_downward_rounded, 'Perdido', _C.red),
+              _hintChip(Icons.arrow_forward_rounded, 'Completado', _C.green),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (leads.length > 1)
+                Positioned(
+                  bottom: 80,
+                  left: 28,
+                  right: 28,
+                  top: 16,
+                  child: RepaintBoundary(
+                    child: Transform.scale(
+                      scale: 0.95,
+                      child: _buildCard(
+                        context,
+                        next,
+                        isBack: true,
+                        overlayColor: null,
+                        overlayLabel: null,
+                        overlayIcon: null,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                bottom: 80,
+                left: 20,
+                right: 20,
+                top: 8,
+                child: GestureDetector(
+                  onPanUpdate: _onDragUpdate,
+                  onPanEnd: _onDragEnd,
+                  child: RepaintBoundary(
+                    child: Transform.translate(
+                      offset: _drag,
+                      child: Transform.rotate(
+                        angle: _drag.dx / 500,
+                        child: _buildCard(
+                          context,
+                          current,
+                          isBack: false,
+                          overlayColor: overlayColor,
+                          overlayLabel: overlayLabel,
+                          overlayIcon: overlayIcon,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            children: [
+              Text(
+                '${_index + 1} / ${leads.length}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: _C.textGrey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _swipeProgramatico('Perdido'),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Marcar como Perdido'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _C.red.withOpacity(0.1), // rojo transparente
+                      foregroundColor: _C.red, // texto e icono rojos
+                      elevation: 0,
+                      side: BorderSide(
+                        color: _C.red,
+                        width: 1.5,
+                      ),
+                    ),
+                  )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context,
+    Lead lead, {
+    required bool isBack,
+    required Color? overlayColor,
+    required String? overlayLabel,
+    required IconData? overlayIcon,
+  }) {
+    final initials = _initials(lead.nameprospecto);
+    final avatarColor = _colorFromInitials(initials);
+    final estadoColor = _estadoColor(lead.estado);
+    final overlayOpacity = (_drag.distance / _threshold).clamp(0.0, 1.0) * 0.15;
+
+    return GestureDetector(
+      onTap: isBack
+          ? null
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        BitacoraScreen(lead: lead, svc: widget.svc)),
+              ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _C.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isBack ? 0.03 : 0.07),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              // Contenido
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar + estado
+                    Row(children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: avatarColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(initials,
+                              style: TextStyle(
+                                  color: avatarColor,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 20)),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: estadoColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: estadoColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(lead.estado,
+                            style: TextStyle(
+                                color: estadoColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
+                    const SizedBox(height: 20),
+
+                    Text(lead.nameprospecto,
+                        style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _C.textDark)),
+                    const SizedBox(height: 4),
+                    Text(lead.infoprospecto,
+                        style:
+                            const TextStyle(fontSize: 15, color: _C.textGrey)),
+                    const SizedBox(height: 20),
+                    const Divider(color: _C.divider),
+                    const SizedBox(height: 16),
+
+                    if (lead.telefono.isNotEmpty)
+                      _infoRow(Icons.phone_outlined, lead.telefono),
+                    if (lead.correo.isNotEmpty)
+                      _infoRow(Icons.mail_outline_rounded, lead.correo),
+                    if (lead.fecha != null)
+                      _infoRow(
+                          Icons.calendar_today_outlined, lead.fechaFormateada),
+
+                    const Spacer(),
+                    if (!isBack)
+                      Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.touch_app_outlined,
+                                size: 13, color: _C.textGrey),
+                            SizedBox(width: 4),
+                            Text('Toca para ver bitácora',
+                                style: TextStyle(
+                                    fontSize: 12, color: _C.textGrey)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Overlay de estado al deslizar
+              if (!isBack && overlayColor != null)
+                Positioned.fill(
+                  child: Container(
+                    color: overlayColor.withValues(alpha: overlayOpacity + 0.1),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: overlayColor,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(overlayIcon!, color: Colors.white, size: 22),
+                            const SizedBox(width: 8),
+                            Text(overlayLabel!,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _infoRow(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(children: [
+          Icon(icon, size: 16, color: _C.textGrey),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(fontSize: 14, color: _C.textDark),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+      );
+
+  Widget _hintChip(IconData icon, String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: color, size: 13),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+        ]),
+      );
 }
 
 // ─── Perfil ───────────────────────────────────────────────────────────────────
@@ -1528,105 +1957,108 @@ void _mostrarAccionesProspecto({
   showModalBottomSheet(
     context: context,
     backgroundColor: _C.bgCard,
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) => SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: _C.divider,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _C.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Text(p.nombre,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _C.textDark)),
-            Text(p.compania,
-                style: const TextStyle(fontSize: 13, color: _C.textGrey)),
-            const SizedBox(height: 16),
-            _accionTile(
-              icon: Icons.edit_outlined,
-              color: _C.blue,
-              label: 'Editar prospecto',
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => ProspectoForm(
-                            prospecto: p, firestoreService: svc)));
-              },
-            ),
-            _accionTile(
-              icon: Icons.swap_horiz_rounded,
-              color: _C.purple,
-              label: 'Convertir a lead',
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => LeadForm(
-                            prospectoOrigen: p, firestoreService: svc)));
-              },
-            ),
-            if (p.telefono.isNotEmpty)
+              Text(p.nombre,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              Text(p.compania,
+                  style: const TextStyle(fontSize: 13, color: _C.textGrey)),
+              const SizedBox(height: 16),
               _accionTile(
-                icon: Icons.phone_outlined,
-                color: _C.green,
-                label: 'Llamar — ${p.telefono}',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _llamar(p.telefono);
-                },
-              ),
-            if (p.movil.isNotEmpty)
-              _accionTile(
-                icon: Icons.smartphone_outlined,
-                color: _C.green,
-                label: 'Móvil — ${p.movil}',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _llamar(p.movil);
-                },
-              ),
-            if (p.correo.isNotEmpty)
-              _accionTile(
-                icon: Icons.mail_outline_rounded,
+                icon: Icons.edit_outlined,
                 color: _C.blue,
-                label: 'Enviar correo',
+                label: 'Editar prospecto',
                 onTap: () {
                   Navigator.pop(ctx);
-                  _enviarCorreo(p.correo, nombre: p.nombre);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ProspectoForm(
+                              prospecto: p, firestoreService: svc)));
                 },
               ),
-            const Divider(height: 24, color: _C.divider),
-            _accionTile(
-              icon: Icons.delete_outline_rounded,
-              color: _C.red,
-              label: 'Eliminar prospecto',
-              onTap: () async {
-                Navigator.pop(ctx);
-                final ok =
-                    await _confirmarEliminacion(context, 'prospecto', p.nombre);
-                if (ok && p.id != null) onDelete(p.id!, p, p.nombre);
-              },
-            ),
-            const SizedBox(height: 4),
-          ],
+              _accionTile(
+                icon: Icons.swap_horiz_rounded,
+                color: _C.purple,
+                label: 'Convertir a lead',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => LeadForm(
+                              prospectoOrigen: p, firestoreService: svc)));
+                },
+              ),
+              if (p.telefono.isNotEmpty)
+                _accionTile(
+                  icon: Icons.phone_outlined,
+                  color: _C.green,
+                  label: 'Llamar — ${p.telefono}',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _llamar(p.telefono);
+                  },
+                ),
+              if (p.movil.isNotEmpty)
+                _accionTile(
+                  icon: Icons.smartphone_outlined,
+                  color: _C.green,
+                  label: 'Móvil — ${p.movil}',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _llamar(p.movil);
+                  },
+                ),
+              if (p.correo.isNotEmpty)
+                _accionTile(
+                  icon: Icons.mail_outline_rounded,
+                  color: _C.blue,
+                  label: 'Enviar correo',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _enviarCorreo(p.correo, nombre: p.nombre);
+                  },
+                ),
+              const Divider(height: 24, color: _C.divider),
+              _accionTile(
+                icon: Icons.delete_outline_rounded,
+                color: _C.red,
+                label: 'Eliminar prospecto',
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final ok = await _confirmarEliminacion(
+                      context, 'prospecto', p.nombre);
+                  if (ok && p.id != null) onDelete(p.id!, p, p.nombre);
+                },
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
         ),
       ),
     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../models/prospecto.dart';
 import '../services/firestore_service.dart';
 
@@ -16,9 +17,6 @@ class _C {
   static const label = Color(0xFF94A3B8);
 }
 
-/// Formulario de CREAR o EDITAR un Prospecto.
-/// Si [prospecto] es null → modo creación.
-/// Si [prospecto] tiene valor → modo edición.
 class ProspectoForm extends StatefulWidget {
   final Prospecto? prospecto;
   final FirestoreService firestoreService;
@@ -35,7 +33,6 @@ class ProspectoForm extends StatefulWidget {
 
 class _ProspectoFormState extends State<ProspectoForm> {
   final _formKey = GlobalKey<FormState>();
-  final _svc = FirestoreService();
 
   late final TextEditingController _companiaCtrl;
   late final TextEditingController _nombreCtrl;
@@ -48,6 +45,11 @@ class _ProspectoFormState extends State<ProspectoForm> {
   bool _loading = false;
   bool get _editando => widget.prospecto != null;
 
+  // ── Speech-to-text ──────────────────────────────────────────────────────────
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  String? _activeField;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +61,45 @@ class _ProspectoFormState extends State<ProspectoForm> {
     _correoCtrl = TextEditingController(text: p?.correo ?? '');
     _telefonoCtrl = TextEditingController(text: p?.telefono ?? '');
     _movilCtrl = TextEditingController(text: p?.movil ?? '');
+
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final enabled = await _speechToText.initialize();
+    if (mounted) setState(() => _speechEnabled = enabled);
+  }
+
+  Future<void> _toggleListening(
+      String fieldId, TextEditingController ctrl) async {
+    if (_activeField == fieldId && _speechToText.isListening) {
+      await _speechToText.stop();
+      setState(() => _activeField = null);
+    } else {
+      if (_speechToText.isListening) await _speechToText.stop();
+      await _speechToText.listen(
+        onResult: (result) =>
+            setState(() => ctrl.text = result.recognizedWords),
+        localeId: 'es_HN',
+      );
+      setState(() => _activeField = fieldId);
+    }
+  }
+
+  Widget _micIcon(String fieldId, TextEditingController ctrl) {
+    if (!_speechEnabled) return const SizedBox.shrink();
+    final active = _activeField == fieldId && _speechToText.isListening;
+    return GestureDetector(
+      onTap: () => _toggleListening(fieldId, ctrl),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Icon(
+          active ? Icons.mic_rounded : Icons.mic_none_rounded,
+          color: active ? _C.red : _C.label,
+          size: 20,
+        ),
+      ),
+    );
   }
 
   @override
@@ -70,6 +111,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
     _correoCtrl.dispose();
     _telefonoCtrl.dispose();
     _movilCtrl.dispose();
+    _speechToText.stop();
     super.dispose();
   }
 
@@ -108,7 +150,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
             ),
           ),
         );
-        Navigator.pop(context, true); // true = hubo cambios
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -153,12 +195,11 @@ class _ProspectoFormState extends State<ProspectoForm> {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(
                     _editando ? 'Editar' : 'Nuevo',
-                    style:
-                        const TextStyle(fontSize: 12, color: _C.textGrey),
+                    style: const TextStyle(fontSize: 12, color: _C.textGrey),
                   ),
-                  Text(
+                  const Text(
                     'Prospecto',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: _C.textDark),
@@ -180,6 +221,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
                     children: [
                       _field(
                         ctrl: _companiaCtrl,
+                        fieldId: 'compania',
                         label: 'Empresa / Compañía',
                         icon: Icons.business_outlined,
                         hint: 'Ej. Distribuidora Norte S.A.',
@@ -188,6 +230,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       _field(
                         ctrl: _nombreCtrl,
+                        fieldId: 'nombre',
                         label: 'Nombre del contacto',
                         icon: Icons.person_outline_rounded,
                         hint: 'Ej. María García',
@@ -196,6 +239,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       _field(
                         ctrl: _cargoCtrl,
+                        fieldId: 'cargo',
                         label: 'Cargo',
                         icon: Icons.work_outline_rounded,
                         hint: 'Ej. Gerente de Compras',
@@ -203,10 +247,12 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       _field(
                         ctrl: _correoCtrl,
+                        fieldId: 'correo',
                         label: 'Correo electrónico',
                         icon: Icons.mail_outline_rounded,
                         hint: 'contacto@empresa.com',
                         keyboardType: TextInputType.emailAddress,
+                        showMic: false,
                         required: true,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
@@ -221,27 +267,32 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       _field(
                         ctrl: _telefonoCtrl,
+                        fieldId: 'telefono',
                         label: 'Teléfono',
                         icon: Icons.phone_outlined,
                         hint: '+504 2222-3333',
                         keyboardType: TextInputType.phone,
+                        showMic: false,
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d\s\+\-\(\)]'))
                         ],
                         required: true,
                         validator: (v) {
-                          final digits =
-                              v?.replaceAll(RegExp(r'\D'), '') ?? '';
-                          return digits.length < 7 ? 'Teléfono muy corto' : null;
+                          final digits = v?.replaceAll(RegExp(r'\D'), '') ?? '';
+                          return digits.length < 7
+                              ? 'Teléfono muy corto'
+                              : null;
                         },
                       ),
                       _field(
                         ctrl: _movilCtrl,
+                        fieldId: 'movil',
                         label: 'Móvil / WhatsApp',
                         icon: Icons.smartphone_outlined,
                         hint: '+504 9999-0000',
                         keyboardType: TextInputType.phone,
+                        showMic: false,
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d\s\+\-\(\)]'))
@@ -249,6 +300,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       _fieldMultiline(
                         ctrl: _direccionCtrl,
+                        fieldId: 'direccion',
                         label: 'Dirección',
                         icon: Icons.location_on_outlined,
                         hint: 'Colonia, ciudad, referencia...',
@@ -313,6 +365,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
 
   Widget _field({
     required TextEditingController ctrl,
+    required String fieldId,
     required String label,
     required IconData icon,
     String? hint,
@@ -320,6 +373,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
     TextCapitalization textCapitalization = TextCapitalization.none,
     List<TextInputFormatter>? inputFormatters,
     bool required = false,
+    bool showMic = true,
     String? Function(String?)? validator,
   }) {
     return Padding(
@@ -332,12 +386,15 @@ class _ProspectoFormState extends State<ProspectoForm> {
           textCapitalization: textCapitalization,
           inputFormatters: inputFormatters,
           textInputAction: TextInputAction.next,
-          decoration: _deco(icon: icon, hint: hint),
+          decoration: _deco(
+            icon: icon,
+            hint: hint,
+            suffix: showMic ? _micIcon(fieldId, ctrl) : null,
+          ),
           validator: validator ??
               (required
-                  ? (v) => (v == null || v.trim().isEmpty)
-                      ? 'Campo requerido'
-                      : null
+                  ? (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Campo requerido' : null
                   : null),
         ),
       ]),
@@ -346,6 +403,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
 
   Widget _fieldMultiline({
     required TextEditingController ctrl,
+    required String fieldId,
     required String label,
     required IconData icon,
     String? hint,
@@ -360,7 +418,11 @@ class _ProspectoFormState extends State<ProspectoForm> {
           minLines: 2,
           keyboardType: TextInputType.multiline,
           textCapitalization: TextCapitalization.sentences,
-          decoration: _deco(icon: icon, hint: hint),
+          decoration: _deco(
+            icon: icon,
+            hint: hint,
+            suffix: _micIcon(fieldId, ctrl),
+          ),
         ),
       ]),
     );
@@ -380,15 +442,21 @@ class _ProspectoFormState extends State<ProspectoForm> {
           ),
           if (required)
             const Text(' *',
-                style: TextStyle(color: _C.red, fontSize: 11, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    color: _C.red, fontSize: 11, fontWeight: FontWeight.w700)),
         ]),
       );
 
-  InputDecoration _deco({required IconData icon, String? hint}) =>
+  InputDecoration _deco({
+    required IconData icon,
+    String? hint,
+    Widget? suffix,
+  }) =>
       InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
         prefixIcon: Icon(icon, color: _C.label, size: 20),
+        suffixIcon: suffix,
         filled: true,
         fillColor: _C.bgCard,
         contentPadding:

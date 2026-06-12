@@ -465,40 +465,27 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 48),
-                Center(
-                  child: Container(
-                    width: 68,
-                    height: 68,
-
-
-
-                  ),
+                const SizedBox(height: 15),
+                Image.asset(
+                  'assets/images/RapiLead_tcwb27.png',
+                  fit: BoxFit.fitHeight,
+                  width: 350,
+                  height: 200,
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Bienvenido de vuelta',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textDark),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Ingresa tus credenciales para continuar',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: AppColors.textGrey),
-                ),
-                const SizedBox(height: 36),
+                // const Text(
+                //   'Ingresa tus credenciales para continuar',
+                //   textAlign: TextAlign.center,
+                //   style: TextStyle(fontSize: 14, color: AppColors.textGrey),
+                // ),
+                //const SizedBox(height: 36),
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: AppColors.bgCard,
                     borderRadius: BorderRadius.circular(24),

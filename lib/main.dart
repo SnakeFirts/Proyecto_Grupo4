@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:rapilead/firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Mi apunte: Lo ocupamos para jalar y guardar los roles en la base de datos
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +20,7 @@ void main() async {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-  
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -29,44 +30,37 @@ void main() async {
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class AppColors {
-  // Marca
-  static const Color primary = Color(0xFF3BBDF5); // azul cian del logo
-  static const Color accent = Color(0xFFF5A623); // naranja del logo
+  static const Color primary = Color(0xFF3BBDF5);
+  static const Color accent = Color(0xFFF5A623);
 
-  // Alias
   static const Color blue = primary;
   static const Color blueDark = Color(0xFF1A9FD8);
   static const Color orange = accent;
 
-  // Fondos
   static const Color bgPage = Color(0xFFF8FBFF);
   static const Color bgCard = Color(0xFFFFFFFF);
   static const Color inputBg = Color(0xFFFFFFFF);
 
-  // Textos
   static const Color textDark = Color(0xFF0F172A);
   static const Color textMedium = Color(0xFF475569);
   static const Color textGrey = Color(0xFF94A3B8);
   static const Color textWhite = Color(0xFFFFFFFF);
   static const Color labelGrey = Color(0xFF94A3B8);
 
-  // Bordes
   static const Color inputBorder = Color(0xFFE2EAF4);
   static const Color divider = Color(0xFFE2EAF4);
 
-  // Estados con color
-  static const Color error = Color(0xFFEF4444); // rojo
+  static const Color error = Color(0xFFEF4444);
   static const Color errorBg = Color(0xFFFEF2F2);
   static const Color errorBorder = Color(0xFFFCA5A5);
-  static const Color success = Color(0xFF22C55E); // verde
+  static const Color success = Color(0xFF22C55E);
   static const Color successBg = Color(0xFFF0FDF4);
-  static const Color warning = Color(0xFFF59E0B); // amarillo
+  static const Color warning = Color(0xFFF59E0B);
   static const Color warningBg = Color(0xFFFFFBEB);
-  static const Color info = Color(0xFF3BBDF5); // cian
+  static const Color info = Color(0xFF3BBDF5);
 
-  // Roles (para las tarjetas de Vendedor/Administrador)
-  static const Color vendedor = Color(0xFF3BBDF5); // cian
-  static const Color admin = Color(0xFFF5A623); // naranja
+  static const Color vendedor = Color(0xFF3BBDF5);
+  static const Color admin = Color(0xFFF5A623);
 }
 
 // ─── Seguridad ────────────────────────────────────────────────────────────────
@@ -106,17 +100,23 @@ class SessionManager {
   static const _keyExpiry = 'sesion_expiry';
   static const _keyAttempts = 'login_attempts';
   static const _keyLockout = 'lockout_until';
+  static const _keyRol =
+      'rol_usuario'; // Mi apunte: Almacenar el rol local evita consultar Firestore en cada pantalla
+  static const _keyUid =
+      'uid_usuario'; // Mi apunte: Ocupamos el UID guardado para filtrar los Leads del vendedor logueado
   static const _sessionDurationHours = 24;
   static const _maxAttempts = 5;
   static const _lockoutMinutes = 5;
 
-  static Future<void> saveSession(String email) async {
+  static Future<void> saveSession(String email, String uid, String rol) async {
     final prefs = await SharedPreferences.getInstance();
     final expiry = DateTime.now()
         .add(const Duration(hours: _sessionDurationHours))
         .millisecondsSinceEpoch;
     await prefs.setBool(_keySession, true);
     await prefs.setString(_keyEmail, email);
+    await prefs.setString(_keyUid, uid); // Guardamos la id de autenticación
+    await prefs.setString(_keyRol, rol); // Guardamos el rol (Vendedor / Admin)
     await prefs.setInt(_keyExpiry, expiry);
     await prefs.setInt(_keyAttempts, 0);
   }
@@ -139,6 +139,8 @@ class SessionManager {
     await prefs.remove(_keySession);
     await prefs.remove(_keyEmail);
     await prefs.remove(_keyExpiry);
+    await prefs.remove(_keyUid); // Limpieza de credenciales de perfil al salir
+    await prefs.remove(_keyRol);
   }
 
   static Future<bool> registerFailedAttempt() async {
@@ -288,7 +290,6 @@ Widget _primaryButton({
       ),
     );
 
-// ─── INSTANCIA GLOBAL DE GOOGLE SIGN IN ───────────────────────────────────────
 final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
@@ -351,7 +352,25 @@ class _LoginPageState extends State<LoginPage> {
           await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (userCredential.user?.email != null) {
-        await SessionManager.saveSession(userCredential.user!.email!);
+        final uid = userCredential.user!.uid;
+
+        // Mi apunte: Si es usuario nuevo por Google, definimos rol "Vendedor" de base para proteger accesos
+        final userDoc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(uid)
+            .get();
+        String rol = 'Vendedor';
+        if (userDoc.exists) {
+          rol = userDoc.data()?['rol'] ?? 'Vendedor';
+        } else {
+          await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+            'nombre': userCredential.user!.displayName ?? "Usuario Google",
+            'email': userCredential.user!.email!,
+            'rol': rol,
+          });
+        }
+
+        await SessionManager.saveSession(userCredential.user!.email!, uid, rol);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -416,7 +435,17 @@ class _LoginPageState extends State<LoginPage> {
         password: _passCtrl.text,
       );
 
-      await SessionManager.saveSession(credential.user!.email!);
+      final uid = credential.user!.uid;
+
+      // Mi apunte: Traemos el rol guardado en Firestore para inicializar correctamente el Dashboard estructurado
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      final rol =
+          userDoc.exists ? (userDoc.data()?['rol'] ?? 'Vendedor') : 'Vendedor';
+
+      await SessionManager.saveSession(credential.user!.email!, uid, rol);
 
       if (mounted) _navigateHome();
     } on FirebaseAuthException catch (e) {
@@ -465,40 +494,21 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 48),
-                Center(
-                  child: Container(
-                    width: 68,
-                    height: 68,
-
-
-
-                  ),
+                const SizedBox(height: 15),
+                Image.asset(
+                  'assets/images/RapiLead_tcwb27.png',
+                  fit: BoxFit.fitHeight,
+                  width: 350,
+                  height: 200,
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Bienvenido de vuelta',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textDark),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Ingresa tus credenciales para continuar',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: AppColors.textGrey),
-                ),
-                const SizedBox(height: 36),
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: AppColors.bgCard,
                     borderRadius: BorderRadius.circular(24),
@@ -636,8 +646,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // ─── Botón de Google ───
                 const Row(children: [
                   Expanded(
                       child: Divider(color: AppColors.divider, thickness: 1)),
@@ -771,6 +779,31 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
     try {
       final email = _emailCtrl.text.trim().toLowerCase();
       final password = _passCtrl.text;
+      final rolElegido = _roles[_rolIndex];
+
+      debugPrint('>>> PASO 1: rol elegido = $rolElegido');
+
+      if (rolElegido == 'Administrador') {
+        debugPrint('>>> PASO 2: consultando admins existentes...');
+
+        final adminQuery = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('rol', isEqualTo: 'Administrador')
+            .limit(1)
+            .get();
+
+        debugPrint('>>> PASO 3: query ok, docs = ${adminQuery.docs.length}');
+
+        if (adminQuery.docs.isNotEmpty) {
+          setState(() {
+            _loading = false;
+            _errorMsg = 'Ya existe un Administrador en el sistema.';
+          });
+          return;
+        }
+      }
+
+      debugPrint('>>> PASO 4: creando usuario en Firebase Auth...');
 
       final credential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -778,8 +811,20 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
         password: password,
       );
 
+      debugPrint('>>> PASO 5: usuario creado, uid = ${credential.user!.uid}');
+
+      final uid = credential.user!.uid;
       await credential.user?.updateDisplayName(_nombreCtrl.text.trim());
-      await SessionManager.saveSession(email);
+
+      // Mi apunte: Escribimos el perfil con su rol explícito
+      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+        'nombre': _nombreCtrl.text.trim(),
+        'email': email,
+        'rol': rolElegido,
+      });
+
+      // Mi apunte: Guardamos la sesión localmente
+      await SessionManager.saveSession(email, uid, rolElegido);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -792,6 +837,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
         );
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('>>> FirebaseAuthException: ${e.code} — ${e.message}');
       setState(() {
         _loading = false;
         _errorMsg = switch (e.code) {
@@ -804,10 +850,11 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
         };
       });
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _errorMsg = 'Error inesperado al crear la cuenta.';
-      });
+    debugPrint('>>> ERROR REGISTRO: $e');
+    setState(() {
+      _loading = false;
+      _errorMsg = 'Error inesperado al crear la cuenta.';
+    });
     }
   }
 
@@ -867,14 +914,17 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                   color: sel
                                       ? (i == 0
                                           ? AppColors.vendedor.withAlpha(20)
-                                          : const Color.fromARGB(255, 245, 35, 35).withAlpha(20))
+                                          : const Color.fromARGB(
+                                                  255, 245, 35, 35)
+                                              .withAlpha(20))
                                       : AppColors.bgCard,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: sel
                                         ? (i == 0
                                             ? AppColors.vendedor
-                                            : const Color.fromARGB(255, 245, 35, 35))
+                                            : const Color.fromARGB(
+                                                255, 245, 35, 35))
                                         : AppColors.inputBorder,
                                     width: sel ? 2 : 1.5,
                                   ),
@@ -888,7 +938,8 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                       color: sel
                                           ? (i == 0
                                               ? AppColors.vendedor
-                                              : const Color.fromARGB(255, 245, 35, 35))
+                                              : const Color.fromARGB(
+                                                  255, 245, 35, 35))
                                           : AppColors.labelGrey,
                                     ),
                                     const SizedBox(height: 8),
@@ -898,7 +949,8 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                                         color: sel
                                             ? (i == 0
                                                 ? AppColors.vendedor
-                                                : const Color.fromARGB(255, 245, 35, 35))
+                                                : const Color.fromARGB(
+                                                    255, 245, 35, 35))
                                             : AppColors.textMedium,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
@@ -962,7 +1014,6 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                             ? 'Mínimo 8 caracteres'
                             : null,
                       ),
-                      
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -1048,7 +1099,6 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                           ),
                         ],
                       ),
-
                       if (_errorMsg != null) ...[
                         const SizedBox(height: 16),
                         Text(
@@ -1075,7 +1125,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
   }
 }
 
-
+// ─── RecuperarAccesoPage ──────────────────────────────────────────────────────
 class RecuperarAccesoPage extends StatefulWidget {
   const RecuperarAccesoPage({super.key});
 

@@ -4,6 +4,7 @@ import 'models/lead.dart';
 import 'models/prospecto.dart';
 import 'models/estado_opciones.dart';
 import 'services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CrearPersonaForm extends StatefulWidget {
   final bool isProspecto;
@@ -123,6 +124,8 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
     final esEdicion = widget.isProspecto
         ? widget.prospectoInicial?.id != null
         : widget.leadInicial?.id != null;
+    final uid =
+        FirebaseAuth.instance.currentUser?.uid ?? ''; // ← Lo leemos aquí
 
     try {
       if (widget.isProspecto) {
@@ -150,7 +153,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
           await service.actualizarProspecto(prospecto);
           widget.handleOnCreateProspecto?.call(prospecto);
         } else {
-          final id = await service.crearProspecto(prospecto);
+          final id = await service.crearProspecto(prospecto, uid);
           widget.handleOnCreateProspecto?.call(prospecto.copyWith(id: id));
         }
       } else {
@@ -173,7 +176,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
           await service.actualizarLead(lead);
           widget.handleOnCreateLead?.call(lead);
         } else {
-          final id = await service.crearLead(lead);
+          final id = await service.crearLead(lead, uid);
           widget.handleOnCreateLead?.call(lead.copyWith(id: id));
         }
       }
@@ -338,7 +341,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
                   )
                 else
                   DropdownButtonFormField<String>(
-                    value: EstadoOpciones.lista
+                    initialValue: EstadoOpciones.lista
                             .contains(_correoEstadoController.text)
                         ? _correoEstadoController.text
                         : null,

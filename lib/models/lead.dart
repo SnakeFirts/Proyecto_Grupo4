@@ -11,6 +11,7 @@ class Lead {
   String telefono;
   String correo;
   DateTime? fechaCreacion;
+  String? userId;
 
   Lead({
     this.id,
@@ -23,6 +24,7 @@ class Lead {
     this.telefono = '',
     this.correo = '',
     this.fechaCreacion,
+    this.userId,
   });
 
   // Para mostrar la fecha formateada en UI
@@ -34,6 +36,7 @@ class Lead {
   }
 
   String fullName() => nameprospecto;
+  
 
   Map<String, dynamic> toMap() {
     return {
@@ -48,6 +51,7 @@ class Lead {
       'fechaCreacion': fechaCreacion != null
           ? Timestamp.fromDate(fechaCreacion!)
           : FieldValue.serverTimestamp(),
+      'userId': userId,
     };
   }
 
@@ -63,6 +67,7 @@ class Lead {
       telefono: map['telefono'] ?? '',
       correo: map['correo'] ?? '',
       fechaCreacion: (map['fechaCreacion'] as Timestamp?)?.toDate(),
+      userId: map['userId'],
     );
   }
 
@@ -84,6 +89,7 @@ class Lead {
     String? telefono,
     String? correo,
     DateTime? fechaCreacion,
+    String? userId,
   }) {
     return Lead(
       id: id ?? this.id,
@@ -96,6 +102,7 @@ class Lead {
       telefono: telefono ?? this.telefono,
       correo: correo ?? this.correo,
       fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      userId: userId ?? this.userId,
     );
   }
 

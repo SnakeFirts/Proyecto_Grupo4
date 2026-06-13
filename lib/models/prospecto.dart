@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Prospecto {
   final String? id;
+  String?
+      userId; //Saber que vendedor creo el prospecto, para mostrar solo los prospectos de ese vendedor
   String compania;
   String nombre;
   String direccion;
@@ -13,6 +15,7 @@ class Prospecto {
 
   Prospecto({
     this.id,
+    String? userId,
     required this.compania,
     required this.nombre,
     required this.direccion,
@@ -27,6 +30,7 @@ class Prospecto {
 
   Map<String, dynamic> toMap() {
     return {
+      'userId': userId, //Guardamos el dueno del prospecto
       'compania': compania,
       'nombre': nombre,
       'direccion': direccion,
@@ -43,6 +47,7 @@ class Prospecto {
   factory Prospecto.fromMap(Map<String, dynamic> map, String docId) {
     return Prospecto(
       id: docId,
+      userId: map['userId'], //Obtenemos el dueno del prospecto
       compania: map['compania'] ?? '',
       nombre: map['nombre'] ?? '',
       direccion: map['direccion'] ?? '',
@@ -71,6 +76,7 @@ class Prospecto {
     String? telefono,
     String? movil,
     DateTime? fechaCreacion,
+    String? userId,
   }) {
     return Prospecto(
       id: id ?? this.id,
@@ -82,6 +88,7 @@ class Prospecto {
       telefono: telefono ?? this.telefono,
       movil: movil ?? this.movil,
       fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      userId: userId ?? this.userId,
     );
   }
 }

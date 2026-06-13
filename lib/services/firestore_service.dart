@@ -18,23 +18,51 @@ class FirestoreService {
       _db.collection('leads').doc(leadId).collection('bitacoras');
 
   // ─── PROSPECTOS ───────────────────────────────────────────────────────────
-  Stream<List<Prospecto>> streamProspectos() {
-    return _prospectos
-        .orderBy('fechaCreacion', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs.map(Prospecto.fromDoc).toList());
+
+  // Apunte: Ahora pedimos isAdmin y currentUid para saber a quién le estamos trayendo los datos
+  Stream<List<Prospecto>> streamProspectos(bool isAdmin, String currentUid) {
+    // Apunte: Quitamos el orderBy de Firebase para no obligar a crear un Índice Compuesto
+    Query<Map<String, dynamic>> query = _prospectos;
+
+    // Apunte: Si es vendedor, filtramos para que la base de datos solo le regrese sus propios clientes
+    if (!isAdmin) {
+      query = query.where('userId', isEqualTo: currentUid);
+    }
+
+    return query.snapshots().map((snap) {
+      final lista = snap.docs.map(Prospecto.fromDoc).toList();
+
+      // Apunte: Ordenamos los datos aquí en el teléfono (del más reciente al más antiguo)
+      lista.sort((a, b) {
+        final fechaA = a.fechaCreacion ?? DateTime(2000);
+        final fechaB = b.fechaCreacion ?? DateTime(2000);
+        return fechaB.compareTo(fechaA);
+      });
+
+      return lista;
+    });
+  }
+
+  Future<void> actualizarEstadoLead(String id, String nuevoEstado) async {
+    await _leads.doc(id).update({'estado': nuevoEstado});
   }
 
   /// Crear prospecto — devuelve el ID generado
-  Future<String> crearProspecto(Prospecto p) async {
-    final ref = await _prospectos.add(p.toMap());
+  Future<String> crearProspecto(Prospecto p, String currentUid) async {
+    final data = p.toMap();
+    // Apunte: Forzamos la inyección del ID del creador justo antes de mandarlo a la nube, así evitamos que se pierda el dato
+    data['userId'] = currentUid;
+
+    final ref = await _prospectos.add(data);
     return ref.id;
   }
 
   /// Actualizar prospecto existente
   Future<void> actualizarProspecto(Prospecto p) async {
     if (p.id == null) throw Exception('Prospecto sin ID');
-    await _prospectos.doc(p.id).update(p.toMap());
+    final data = p.toMap();
+    data.remove('userId'); //
+    await _prospectos.doc(p.id).update(data);
   }
 
   /// Eliminar prospecto
@@ -43,23 +71,47 @@ class FirestoreService {
   }
 
   // ─── LEADS ────────────────────────────────────────────────────────────────
-  Stream<List<Lead>> streamLeads() {
-    return _leads
-        .orderBy('fechaCreacion', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs.map(Lead.fromDoc).toList());
+
+  // Apunte: Misma lógica de permisos para las oportunidades (Leads)
+  Stream<List<Lead>> streamLeads(bool isAdmin, String currentUid) {
+    // Apunte: Misma solución, quitamos el orderBy de la consulta
+    Query<Map<String, dynamic>> query = _leads;
+
+    // Apunte: Ocultamos lo que no es del vendedor actual
+    if (!isAdmin) {
+      query = query.where('userId', isEqualTo: currentUid);
+    }
+
+    return query.snapshots().map((snap) {
+      final lista = snap.docs.map(Lead.fromDoc).toList();
+
+      // Apunte: Ordenamiento local para Leads
+      lista.sort((a, b) {
+        final fechaA = a.fechaCreacion ?? DateTime(2000);
+        final fechaB = b.fechaCreacion ?? DateTime(2000);
+        return fechaB.compareTo(fechaA);
+      });
+
+      return lista;
+    });
   }
 
   /// Crear lead — devuelve el ID generado
-  Future<String> crearLead(Lead l) async {
-    final ref = await _leads.add(l.toMap());
+  Future<String> crearLead(Lead l, String currentUid) async {
+    final data = l.toMap();
+    // Apunte: Marcamos la propiedad de la oportunidad
+    data['userId'] = currentUid;
+
+    final ref = await _leads.add(data);
     return ref.id;
   }
 
   /// Actualizar lead existente
   Future<void> actualizarLead(Lead l) async {
     if (l.id == null) throw Exception('Lead sin ID');
-    await _leads.doc(l.id).update(l.toMap());
+    final data = l.toMap();
+    data.remove('userId');
+    await _leads.doc(l.id).update(data);
   }
 
   /// Eliminar lead
@@ -68,19 +120,20 @@ class FirestoreService {
   }
 
   /// Convertir prospecto en lead (crea lead y puede marcar prospecto)
-  Future<String> convertirProspectoALead(Prospecto p) async {
+  Future<String> convertirProspectoALead(Prospecto p, String currentUid) async {
     final lead = Lead.desdeProspecto(p);
-    return await crearLead(lead);
+    // Apunte: Pasamos el UID para que el nuevo lead también se asigne correctamente al vendedor
+    return await crearLead(lead, currentUid);
   }
 
   // ─── BITÁCORAS ────────────────────────────────────────────────────────────
   Stream<List<Map<String, dynamic>>> streamBitacoras(String leadId) {
+    // Apunte: Aquí sí podemos dejar el orderBy porque las bitácoras no las filtramos con un where (solo pedimos las del documento actual)
     return _bitacoras(leadId)
         .orderBy('fecha', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => {'id': d.id, ...d.data()})
-            .toList());
+        .map(
+            (snap) => snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
   /// Guardar entrada de bitácora

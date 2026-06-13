@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/prospecto.dart';
 import 'models/lead.dart';
@@ -11,6 +12,8 @@ import 'views/prospecto_form.dart';
 import 'views/lead_form.dart';
 import 'views/bitacora_screen.dart';
 import 'main.dart';
+
+import 'admin_stats_screen.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -30,8 +33,8 @@ class _C {
 // ─── Modelo de eliminación pendiente (undo) ───────────────────────────────────
 class _PendingDelete {
   final String id;
-  final bool isLead; // true = lead, false = prospecto
-  final dynamic item; // Lead | Prospecto (para restaurar si se cancela)
+  final bool isLead;
+  final dynamic item;
   Timer? timer;
 
   _PendingDelete({
@@ -52,9 +55,30 @@ class Dashboardp extends StatefulWidget {
 class _DashboardpState extends State<Dashboardp> {
   int _tabIndex = 0;
   final _svc = FirestoreService();
-
-  // IDs pendientes de borrado (filtrados del stream mientras el usuario puede deshacer)
   final Set<String> _pendingDeleteIds = {};
+
+  bool _isAdmin = false;
+  String _currentUid = '';
+  String _rol = 'Vendedor';
+  bool _cargandoPerfil = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPerfil();
+  }
+
+  Future<void> _cargarPerfil() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _rol = prefs.getString('rol_usuario') ?? 'Vendedor';
+      _isAdmin = _rol == 'Administrador';
+      _currentUid = prefs.getString('uid_usuario') ??
+          FirebaseAuth.instance.currentUser?.uid ??
+          '';
+      _cargandoPerfil = false;
+    });
+  }
 
   void _scheduleDelete({
     required BuildContext ctx,
@@ -63,12 +87,9 @@ class _DashboardpState extends State<Dashboardp> {
     required dynamic item,
     required String displayName,
   }) {
-    // Marcar como "eliminando" para sacarlo de la UI inmediatamente
     setState(() => _pendingDeleteIds.add(id));
-
     final pending = _PendingDelete(id: id, isLead: isLead, item: item);
 
-    // Mostrar SnackBar con opción de deshacer
     ScaffoldMessenger.of(ctx).clearSnackBars();
     final snackBar = SnackBar(
       content: Text(
@@ -84,7 +105,6 @@ class _DashboardpState extends State<Dashboardp> {
         label: 'Deshacer',
         textColor: _C.blue,
         onPressed: () {
-          // Cancelar el timer y restaurar el item en la UI
           pending.timer?.cancel();
           setState(() => _pendingDeleteIds.remove(id));
         },
@@ -92,7 +112,6 @@ class _DashboardpState extends State<Dashboardp> {
     );
 
     ScaffoldMessenger.of(ctx).showSnackBar(snackBar).closed.then((reason) {
-      // Si el SnackBar cerró sin presionar "Deshacer", ejecutar el borrado real
       if (reason != SnackBarClosedReason.action) {
         _pendingDeleteIds.remove(id);
         if (isLead) {
@@ -104,15 +123,33 @@ class _DashboardpState extends State<Dashboardp> {
     });
   }
 
+  // Mi apunte: Lista de items del nav dependiendo del rol
+  List<(IconData, IconData, String)> get _navItems => [
+        (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
+        (Icons.person_add_outlined, Icons.person_add_rounded, 'Prospectos'),
+        (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Leads'),
+        if (_isAdmin)
+          (Icons.group_outlined, Icons.group_rounded, 'Equipo')
+        else
+          (Icons.swipe_outlined, Icons.swipe, 'Swiper'),
+        (Icons.person_outline, Icons.person_rounded, 'Perfil'),
+      ];
+
   @override
   Widget build(BuildContext context) {
+    if (_cargandoPerfil) {
+      return const Scaffold(
+        backgroundColor: _C.bgPage,
+        body: Center(child: CircularProgressIndicator(color: _C.blue)),
+      );
+    }
+
     return StreamBuilder<List<Prospecto>>(
-      stream: _svc.streamProspectos(),
+      stream: _svc.streamProspectos(_isAdmin, _currentUid),
       builder: (ctx, snapP) {
         return StreamBuilder<List<Lead>>(
-          stream: _svc.streamLeads(),
+          stream: _svc.streamLeads(_isAdmin, _currentUid),
           builder: (ctx, snapL) {
-            // Filtrar items pendientes de borrado del stream
             final prospectos = (snapP.data ?? [])
                 .where((p) => p.id == null || !_pendingDeleteIds.contains(p.id))
                 .toList();
@@ -120,22 +157,29 @@ class _DashboardpState extends State<Dashboardp> {
                 .where((l) => l.id == null || !_pendingDeleteIds.contains(l.id))
                 .toList();
 
+            // Mi apunte: Página 0 es AdminInicioScreen si es admin, InicioScreen si es vendedor
+            // Página 3 es EquipoScreen si es admin, BitacoraTabScreen si es vendedor
             final pages = [
-              InicioScreen(
-                prospectos: prospectos,
-                leads: leads,
-                svc: _svc,
-                onDelete: (id, isLead, item, name) => _scheduleDelete(
-                  ctx: context,
-                  id: id,
-                  isLead: isLead,
-                  item: item,
-                  displayName: name,
+              if (_isAdmin)
+                AdminInicioScreen(prospectos: prospectos, leads: leads)
+              else
+                InicioScreen(
+                  prospectos: prospectos,
+                  leads: leads,
+                  svc: _svc,
+                  isAdmin: _isAdmin,
+                  onDelete: (id, isLead, item, name) => _scheduleDelete(
+                    ctx: context,
+                    id: id,
+                    isLead: isLead,
+                    item: item,
+                    displayName: name,
+                  ),
                 ),
-              ),
               ProspectosScreen(
                 prospectos: prospectos,
                 svc: _svc,
+                isAdmin: _isAdmin,
                 onDelete: (id, item, name) => _scheduleDelete(
                   ctx: context,
                   id: id,
@@ -147,6 +191,7 @@ class _DashboardpState extends State<Dashboardp> {
               LeadsScreen(
                 leads: leads,
                 svc: _svc,
+                isAdmin: _isAdmin,
                 onDelete: (id, item, name) => _scheduleDelete(
                   ctx: context,
                   id: id,
@@ -155,8 +200,12 @@ class _DashboardpState extends State<Dashboardp> {
                   displayName: name,
                 ),
               ),
-              const BitacoraTabScreen(),
-              const PerfilScreen(),
+              // Mi apunte: Tab 3 cambia según el rol
+              if (_isAdmin)
+                EquipoScreen(leads: leads, prospectos: prospectos)
+              else
+                BitacoraTabScreen(isAdmin: _isAdmin, currentUid: _currentUid),
+              PerfilScreen(rol: _rol),
             ];
 
             return Scaffold(
@@ -164,11 +213,12 @@ class _DashboardpState extends State<Dashboardp> {
               body: IndexedStack(index: _tabIndex, children: pages),
               bottomNavigationBar: _BottomNav(
                 currentIndex: _tabIndex,
+                items: _navItems,
                 onTap: (i) => setState(() => _tabIndex = i),
               ),
               floatingActionButton:
                   (_tabIndex == 0 || _tabIndex == 1 || _tabIndex == 2)
-                      ? _MiFAB(svc: _svc)
+                      ? _MiFAB(svc: _svc, currentUid: _currentUid)
                       : null,
             );
           },
@@ -181,19 +231,17 @@ class _DashboardpState extends State<Dashboardp> {
 // ─── Bottom Navigation Bar ────────────────────────────────────────────────────
 class _BottomNav extends StatelessWidget {
   final int currentIndex;
+  final List<(IconData, IconData, String)> items;
   final ValueChanged<int> onTap;
-  const _BottomNav({required this.currentIndex, required this.onTap});
+
+  const _BottomNav({
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
-      (Icons.person_add_outlined, Icons.person_add_rounded, 'Prospectos'),
-      (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Leads'),
-      (Icons.swipe_outlined, Icons.swipe, 'Swiper'),
-      (Icons.person_outline, Icons.person_rounded, 'Perfil'),
-    ];
-
     return Container(
       decoration: const BoxDecoration(
         color: _C.bgCard,
@@ -248,6 +296,7 @@ class InicioScreen extends StatelessWidget {
   final List<Prospecto> prospectos;
   final List<Lead> leads;
   final FirestoreService svc;
+  final bool isAdmin;
   final void Function(String id, bool isLead, dynamic item, String name)
       onDelete;
 
@@ -256,6 +305,7 @@ class InicioScreen extends StatelessWidget {
     required this.prospectos,
     required this.leads,
     required this.svc,
+    required this.isAdmin,
     required this.onDelete,
   });
 
@@ -390,23 +440,25 @@ class InicioScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // ── Últimos leads con swipe ───────────────────────────────────
-              Row(children: [
-                const Text('Últimos leads',
+              const Row(children: [
+                Text('Últimos leads',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: _C.textDark)),
-                const Spacer(),
-                const Text('Ver todo',
+                Spacer(),
+                Text('Ver todo',
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: _C.blue)),
               ]),
               const SizedBox(height: 4),
-              const Text(
-                'Desliza para editar o eliminar',
-                style: TextStyle(fontSize: 11, color: _C.textGrey),
+              Text(
+                isAdmin
+                    ? 'Desliza para editar o eliminar'
+                    : 'Desliza a la derecha para editar',
+                style: const TextStyle(fontSize: 11, color: _C.textGrey),
               ),
               const SizedBox(height: 10),
               if (leads.isEmpty)
@@ -543,7 +595,6 @@ class InicioScreen extends StatelessWidget {
         ),
       );
 
-  // ── Mini-card de lead con swipe editar/eliminar ──────────────────────────
   Widget _leadMiniCard(BuildContext context, Lead l) {
     final initials = _initials(l.nameprospecto);
     final color = _colorFromInitials(initials);
@@ -551,6 +602,8 @@ class InicioScreen extends StatelessWidget {
 
     return Dismissible(
       key: Key('inicio_lead_${l.id ?? l.nameprospecto}'),
+      direction:
+          isAdmin ? DismissDirection.horizontal : DismissDirection.startToEnd,
       background: _swipeBg(
         color: _C.blue,
         icon: Icons.edit_outlined,
@@ -565,16 +618,14 @@ class InicioScreen extends StatelessWidget {
       ),
       confirmDismiss: (dir) async {
         if (dir == DismissDirection.startToEnd) {
-          // Editar
           await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => LeadForm(lead: l, firestoreService: svc),
             ),
           );
-          return false; // No quitar: el stream se actualiza solo
+          return false;
         } else {
-          // Confirmar eliminación
           final confirmed =
               await _confirmarEliminacion(context, 'lead', l.nameprospecto);
           return confirmed;
@@ -590,7 +641,7 @@ class InicioScreen extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => BitacoraScreen(lead: l, svc: svc),
+            builder: (_) => BitacoraScreen(lead: l, svc: svc, isAdmin: isAdmin),
           ),
         ),
         onLongPress: () => _accionesLead(context, l),
@@ -645,6 +696,7 @@ class InicioScreen extends StatelessWidget {
       context: context,
       l: l,
       svc: svc,
+      isAdmin: isAdmin,
       onDelete: (id, item, name) => onDelete(id, true, item, name),
     );
   }
@@ -654,12 +706,14 @@ class InicioScreen extends StatelessWidget {
 class ProspectosScreen extends StatefulWidget {
   final List<Prospecto> prospectos;
   final FirestoreService svc;
+  final bool isAdmin;
   final void Function(String id, dynamic item, String name) onDelete;
 
   const ProspectosScreen({
     super.key,
     required this.prospectos,
     required this.svc,
+    required this.isAdmin,
     required this.onDelete,
   });
 
@@ -759,6 +813,9 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
 
     return Dismissible(
       key: Key(p.id ?? p.nombre),
+      direction: widget.isAdmin
+          ? DismissDirection.horizontal
+          : DismissDirection.startToEnd,
       background: _swipeBg(
           color: _C.blue,
           icon: Icons.edit_outlined,
@@ -794,6 +851,7 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
           context: context,
           p: p,
           svc: widget.svc,
+          isAdmin: widget.isAdmin,
           onDelete: widget.onDelete,
         ),
         child: Container(
@@ -862,11 +920,10 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _C.purple.withValues(alpha: 0.3)),
                 ),
-                child: Row(children: [
-                  const Icon(Icons.swap_horiz_rounded,
-                      color: _C.purple, size: 12),
-                  const SizedBox(width: 3),
-                  const Text('Lead',
+                child: const Row(children: [
+                  Icon(Icons.swap_horiz_rounded, color: _C.purple, size: 12),
+                  SizedBox(width: 3),
+                  Text('Lead',
                       style: TextStyle(
                           color: _C.purple,
                           fontSize: 11,
@@ -885,12 +942,14 @@ class _ProspectosScreenState extends State<ProspectosScreen> {
 class LeadsScreen extends StatefulWidget {
   final List<Lead> leads;
   final FirestoreService svc;
+  final bool isAdmin;
   final void Function(String id, dynamic item, String name) onDelete;
 
   const LeadsScreen({
     super.key,
     required this.leads,
     required this.svc,
+    required this.isAdmin,
     required this.onDelete,
   });
 
@@ -998,6 +1057,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
     return Dismissible(
       key: Key(l.id ?? l.nameprospecto),
+      direction: widget.isAdmin
+          ? DismissDirection.horizontal
+          : DismissDirection.startToEnd,
       background: _swipeBg(
           color: _C.blue,
           icon: Icons.edit_outlined,
@@ -1031,13 +1093,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => BitacoraScreen(lead: l, svc: widget.svc),
+            builder: (_) => BitacoraScreen(
+                lead: l, svc: widget.svc, isAdmin: widget.isAdmin),
           ),
         ),
         onLongPress: () => _mostrarAccionesLead(
           context: context,
           l: l,
           svc: widget.svc,
+          isAdmin: widget.isAdmin,
           onDelete: widget.onDelete,
         ),
         child: Container(
@@ -1116,7 +1180,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
 // ─── Bitácora tab ─────────────────────────────────────────────────────────────
 class BitacoraTabScreen extends StatefulWidget {
-  const BitacoraTabScreen({super.key});
+  final bool isAdmin;
+  final String currentUid;
+
+  const BitacoraTabScreen({
+    super.key,
+    required this.isAdmin,
+    required this.currentUid,
+  });
 
   @override
   State<BitacoraTabScreen> createState() => _BitacoraTabScreenState();
@@ -1126,19 +1197,8 @@ class _BitacoraTabScreenState extends State<BitacoraTabScreen> {
   final _svc = FirestoreService();
 
   Future<void> _cambiarEstado(Lead lead, String nuevoEstado) async {
-    final updated = Lead(
-      id: lead.id,
-      nameprospecto: lead.nameprospecto,
-      prospectoId: lead.prospectoId,
-      infoprospecto: lead.infoprospecto,
-      fecha: lead.fecha,
-      detalle: lead.detalle,
-      estado: nuevoEstado,
-      telefono: lead.telefono,
-      correo: lead.correo,
-      fechaCreacion: lead.fechaCreacion,
-    );
-    await _svc.actualizarLead(updated);
+    if (lead.id == null) return;
+    await _svc.actualizarEstadoLead(lead.id!, nuevoEstado);
   }
 
   @override
@@ -1166,7 +1226,7 @@ class _BitacoraTabScreenState extends State<BitacoraTabScreen> {
             ),
             Expanded(
               child: StreamBuilder<List<Lead>>(
-                stream: _svc.streamLeads(),
+                stream: _svc.streamLeads(widget.isAdmin, widget.currentUid),
                 builder: (ctx, snap) {
                   final leads = snap.data ?? [];
                   if (leads.isEmpty) {
@@ -1176,6 +1236,7 @@ class _BitacoraTabScreenState extends State<BitacoraTabScreen> {
                     leads: leads,
                     svc: _svc,
                     onCambiarEstado: _cambiarEstado,
+                    isAdmin: widget.isAdmin,
                   );
                 },
               ),
@@ -1192,11 +1253,13 @@ class _LeadCardStack extends StatefulWidget {
   final List<Lead> leads;
   final FirestoreService svc;
   final Future<void> Function(Lead, String) onCambiarEstado;
+  final bool isAdmin;
 
   const _LeadCardStack({
     required this.leads,
     required this.svc,
     required this.onCambiarEstado,
+    required this.isAdmin,
   });
 
   @override
@@ -1376,11 +1439,10 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Marcar como Perdido'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          _C.red.withOpacity(0.1), // rojo transparente
-                      foregroundColor: _C.red, // texto e icono rojos
+                      backgroundColor: _C.red.withOpacity(0.1),
+                      foregroundColor: _C.red,
                       elevation: 0,
-                      side: BorderSide(
+                      side: const BorderSide(
                         color: _C.red,
                         width: 1.5,
                       ),
@@ -1412,8 +1474,11 @@ class _LeadCardStackState extends State<_LeadCardStack> {
           : () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) =>
-                        BitacoraScreen(lead: lead, svc: widget.svc)),
+                    builder: (_) => BitacoraScreen(
+                          lead: lead,
+                          svc: widget.svc,
+                          isAdmin: widget.isAdmin,
+                        )),
               ),
       child: Container(
         decoration: BoxDecoration(
@@ -1432,13 +1497,11 @@ class _LeadCardStackState extends State<_LeadCardStack> {
           borderRadius: BorderRadius.circular(24),
           child: Stack(
             children: [
-              // Contenido
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Avatar + estado
                     Row(children: [
                       Container(
                         width: 56,
@@ -1473,7 +1536,6 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                       ),
                     ]),
                     const SizedBox(height: 20),
-
                     Text(lead.nameprospecto,
                         style: const TextStyle(
                             fontSize: 22,
@@ -1486,7 +1548,6 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                     const SizedBox(height: 20),
                     const Divider(color: _C.divider),
                     const SizedBox(height: 16),
-
                     if (lead.telefono.isNotEmpty)
                       _infoRow(Icons.phone_outlined, lead.telefono),
                     if (lead.correo.isNotEmpty)
@@ -1494,13 +1555,12 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                     if (lead.fecha != null)
                       _infoRow(
                           Icons.calendar_today_outlined, lead.fechaFormateada),
-
                     const Spacer(),
                     if (!isBack)
-                      Center(
+                      const Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
+                          children: [
                             Icon(Icons.touch_app_outlined,
                                 size: 13, color: _C.textGrey),
                             SizedBox(width: 4),
@@ -1513,8 +1573,6 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                   ],
                 ),
               ),
-
-              // Overlay de estado al deslizar
               if (!isBack && overlayColor != null)
                 Positioned.fill(
                   child: Container(
@@ -1582,7 +1640,9 @@ class _LeadCardStackState extends State<_LeadCardStack> {
 
 // ─── Perfil ───────────────────────────────────────────────────────────────────
 class PerfilScreen extends StatelessWidget {
-  const PerfilScreen({super.key});
+  final String rol;
+
+  const PerfilScreen({super.key, required this.rol});
 
   @override
   Widget build(BuildContext context) {
@@ -1630,8 +1690,8 @@ class PerfilScreen extends StatelessWidget {
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           color: _C.textDark)),
-                  const Text('Vendedor',
-                      style: TextStyle(fontSize: 13, color: _C.textGrey)),
+                  Text(rol,
+                      style: const TextStyle(fontSize: 13, color: _C.textGrey)),
                 ]),
               ),
               const SizedBox(height: 32),
@@ -1695,7 +1755,9 @@ class PerfilScreen extends StatelessWidget {
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 class _MiFAB extends StatelessWidget {
   final FirestoreService svc;
-  const _MiFAB({required this.svc});
+  final String currentUid;
+
+  const _MiFAB({required this.svc, required this.currentUid});
 
   @override
   Widget build(BuildContext context) {
@@ -1848,6 +1910,7 @@ void _mostrarAccionesLead({
   required BuildContext context,
   required Lead l,
   required FirestoreService svc,
+  required bool isAdmin,
   required void Function(String id, dynamic item, String name) onDelete,
 }) {
   showModalBottomSheet(
@@ -1863,7 +1926,6 @@ void _mostrarAccionesLead({
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle
             Center(
               child: Container(
                 width: 36,
@@ -1892,7 +1954,8 @@ void _mostrarAccionesLead({
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => BitacoraScreen(lead: l, svc: svc)));
+                        builder: (_) => BitacoraScreen(
+                            lead: l, svc: svc, isAdmin: isAdmin)));
               },
             ),
             _accionTile(
@@ -1928,18 +1991,20 @@ void _mostrarAccionesLead({
                   _enviarCorreo(l.correo, nombre: l.nameprospecto);
                 },
               ),
-            const Divider(height: 24, color: _C.divider),
-            _accionTile(
-              icon: Icons.delete_outline_rounded,
-              color: _C.red,
-              label: 'Eliminar lead',
-              onTap: () async {
-                Navigator.pop(ctx);
-                final ok = await _confirmarEliminacion(
-                    context, 'lead', l.nameprospecto);
-                if (ok && l.id != null) onDelete(l.id!, l, l.nameprospecto);
-              },
-            ),
+            if (isAdmin) ...[
+              const Divider(height: 24, color: _C.divider),
+              _accionTile(
+                icon: Icons.delete_outline_rounded,
+                color: _C.red,
+                label: 'Eliminar lead',
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final ok = await _confirmarEliminacion(
+                      context, 'lead', l.nameprospecto);
+                  if (ok && l.id != null) onDelete(l.id!, l, l.nameprospecto);
+                },
+              ),
+            ],
             const SizedBox(height: 4),
           ],
         ),
@@ -1952,6 +2017,7 @@ void _mostrarAccionesProspecto({
   required BuildContext context,
   required Prospecto p,
   required FirestoreService svc,
+  required bool isAdmin,
   required void Function(String id, dynamic item, String name) onDelete,
 }) {
   showModalBottomSheet(
@@ -2044,18 +2110,20 @@ void _mostrarAccionesProspecto({
                     _enviarCorreo(p.correo, nombre: p.nombre);
                   },
                 ),
-              const Divider(height: 24, color: _C.divider),
-              _accionTile(
-                icon: Icons.delete_outline_rounded,
-                color: _C.red,
-                label: 'Eliminar prospecto',
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final ok = await _confirmarEliminacion(
-                      context, 'prospecto', p.nombre);
-                  if (ok && p.id != null) onDelete(p.id!, p, p.nombre);
-                },
-              ),
+              if (isAdmin) ...[
+                const Divider(height: 24, color: _C.divider),
+                _accionTile(
+                  icon: Icons.delete_outline_rounded,
+                  color: _C.red,
+                  label: 'Eliminar prospecto',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final ok = await _confirmarEliminacion(
+                        context, 'prospecto', p.nombre);
+                    if (ok && p.id != null) onDelete(p.id!, p, p.nombre);
+                  },
+                ),
+              ],
               const SizedBox(height: 4),
             ],
           ),

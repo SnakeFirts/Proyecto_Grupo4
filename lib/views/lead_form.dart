@@ -6,6 +6,7 @@ import '../models/lead.dart';
 import '../models/prospecto.dart';
 import '../models/estado_opciones.dart';
 import '../services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Mi apunte: Necesario para leer el usuario actual
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -160,7 +161,8 @@ class _LeadFormState extends State<LeadForm> {
     setState(() => _loading = true);
 
     try {
-      final lead = Lead(
+      // Mi apunte: Primero armamos la caja (objeto Lead) con todo lo que llenó el usuario
+      final leadData = Lead(
         id: widget.lead?.id,
         nameprospecto: _nombreCtrl.text.trim(),
         prospectoId: widget.lead?.prospectoId ?? widget.prospectoOrigen?.id,
@@ -173,10 +175,13 @@ class _LeadFormState extends State<LeadForm> {
         fechaCreacion: widget.lead?.fechaCreacion ?? DateTime.now(),
       );
 
+      // Mi apunte: Decidimos si actualizamos uno existente o creamos uno nuevo
       if (_editando) {
-        await widget.firestoreService.actualizarLead(lead);
+        await widget.firestoreService.actualizarLead(leadData);
       } else {
-        await widget.firestoreService.crearLead(lead);
+        // Obtenemos el ID del vendedor logueado y lo inyectamos al crear el lead
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        await widget.firestoreService.crearLead(leadData, uid);
       }
 
       if (mounted) {
@@ -256,11 +261,10 @@ class _LeadFormState extends State<LeadForm> {
                       color: _C.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(children: [
-                      const Icon(Icons.swap_horiz_rounded,
-                          color: _C.blue, size: 14),
-                      const SizedBox(width: 4),
-                      const Text('Desde prospecto',
+                    child: const Row(children: [
+                      Icon(Icons.swap_horiz_rounded, color: _C.blue, size: 14),
+                      SizedBox(width: 4),
+                      Text('Desde prospecto',
                           style: TextStyle(
                               color: _C.blue,
                               fontSize: 11,

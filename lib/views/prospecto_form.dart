@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../models/prospecto.dart';
 import '../services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // ─── Colores (mismos que dashboard) ──────────────────────────────────────────
 class _C {
@@ -136,7 +137,14 @@ class _ProspectoFormState extends State<ProspectoForm> {
       if (_editando) {
         await widget.firestoreService.actualizarProspecto(p);
       } else {
-        await widget.firestoreService.crearProspecto(p);
+        if (_editando) {
+          await widget.firestoreService.actualizarProspecto(p);
+        } else {
+          // Mi apunte: Jalamos el ID del usuario logueado directamente de Auth
+          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+          await widget.firestoreService
+              .crearProspecto(p, uid); // ← Aquí pasamos el segundo parámetro
+        }
       }
 
       if (mounted) {

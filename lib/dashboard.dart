@@ -87,16 +87,41 @@ class _DashboardpState extends State<Dashboardp> {
     required dynamic item,
     required String displayName,
   }) {
+    // 1. Agregar a pendientes (desaparece visualmente)
     setState(() => _pendingDeleteIds.add(id));
+
+    // 2. Limpiar SnackBars anteriores
+    ScaffoldMessenger.of(ctx).clearSnackBars();
+
+    // 3. Crear el objeto pendiente con un Timer
     final pending = _PendingDelete(id: id, isLead: isLead, item: item);
 
-    ScaffoldMessenger.of(ctx).clearSnackBars();
+    // 4. INICIAR EL TIMER (esto faltaba)
+    final messenger = ScaffoldMessenger.of(ctx);
+
+    pending.timer = Timer(const Duration(seconds: 3), () {
+      if (!_pendingDeleteIds.contains(id)) return;
+
+      setState(() {
+        _pendingDeleteIds.remove(id);
+      });
+
+      if (isLead) {
+        _svc.eliminarLead(id);
+      } else {
+        _svc.eliminarProspecto(id);
+      }
+
+      messenger.hideCurrentSnackBar();
+    });
+
+    // 5. Mostrar SnackBar con opción Deshacer
     final snackBar = SnackBar(
       content: Text(
         '${isLead ? "Lead" : "Prospecto"} "$displayName" eliminado',
         style: const TextStyle(fontWeight: FontWeight.w500),
       ),
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 3),
       behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -105,25 +130,16 @@ class _DashboardpState extends State<Dashboardp> {
         label: 'Deshacer',
         textColor: _C.blue,
         onPressed: () {
+          // Cancelar el timer y restaurar el elemento
           pending.timer?.cancel();
           setState(() => _pendingDeleteIds.remove(id));
         },
       ),
     );
 
-    ScaffoldMessenger.of(ctx).showSnackBar(snackBar).closed.then((reason) {
-      if (reason != SnackBarClosedReason.action) {
-        _pendingDeleteIds.remove(id);
-        if (isLead) {
-          _svc.eliminarLead(id);
-        } else {
-          _svc.eliminarProspecto(id);
-        }
-      }
-    });
+    ScaffoldMessenger.of(ctx).showSnackBar(snackBar);
   }
 
-  // Mi apunte: Lista de items del nav dependiendo del rol
   List<(IconData, IconData, String)> get _navItems => [
         (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
         (Icons.person_add_outlined, Icons.person_add_rounded, 'Prospectos'),
@@ -156,9 +172,6 @@ class _DashboardpState extends State<Dashboardp> {
             final leads = (snapL.data ?? [])
                 .where((l) => l.id == null || !_pendingDeleteIds.contains(l.id))
                 .toList();
-
-            // Mi apunte: Página 0 es AdminInicioScreen si es admin, InicioScreen si es vendedor
-            // Página 3 es EquipoScreen si es admin, BitacoraTabScreen si es vendedor
             final pages = [
               if (_isAdmin)
                 AdminInicioScreen(prospectos: prospectos, leads: leads)
@@ -200,7 +213,6 @@ class _DashboardpState extends State<Dashboardp> {
                   displayName: name,
                 ),
               ),
-              // Mi apunte: Tab 3 cambia según el rol
               if (_isAdmin)
                 EquipoScreen(leads: leads, prospectos: prospectos)
               else
@@ -214,7 +226,11 @@ class _DashboardpState extends State<Dashboardp> {
               bottomNavigationBar: _BottomNav(
                 currentIndex: _tabIndex,
                 items: _navItems,
-                onTap: (i) => setState(() => _tabIndex = i),
+                onTap: (i) {
+                  setState(() {
+                    _tabIndex = i;
+                  });
+                },
               ),
               floatingActionButton:
                   (_tabIndex == 0 || _tabIndex == 1 || _tabIndex == 2)

@@ -23,12 +23,9 @@ class _C {
   static const purple = Color(0xFF8B5CF6);
 }
 
-/// Pantalla principal de Bitácora para un Lead concreto.
-/// Muestra el historial y permite añadir/editar/eliminar entradas.
 class BitacoraScreen extends StatelessWidget {
   final Lead lead;
   final FirestoreService svc;
-  // Mi apunte: Agregamos el parámetro isAdmin para saber si el usuario puede editar/borrar la bitácora
   final bool isAdmin;
 
   const BitacoraScreen({
@@ -170,7 +167,7 @@ class _BitacoraView extends StatelessWidget {
                                 leadId: lead.id!,
                                 svc: svc,
                                 isAdmin:
-                                    isAdmin, // Mi apunte: Pasamos la validación a la tarjeta individual
+                                    isAdmin,
                               ),
                             );
                           },
@@ -210,7 +207,7 @@ class _EntradaCard extends StatelessWidget {
   final String leadId;
   final FirestoreService svc;
   final bool
-      isAdmin; // Mi apunte: Validamos el rol para la auditoría de la bitácora
+      isAdmin;
 
   const _EntradaCard({
     required this.entrada,
@@ -303,8 +300,7 @@ class _EntradaCard extends StatelessWidget {
               ]),
             ]),
           ),
-
-          // Mi apunte: Ocultamos los 3 puntitos si es vendedor, así protegemos el historial de manipulaciones
+          
           if (isAdmin)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded,

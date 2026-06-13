@@ -5,7 +5,7 @@ import '../models/prospecto.dart';
 import '../services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// ─── Colores (mismos que dashboard) ──────────────────────────────────────────
+// ─── Colores ──────────────────────────────────────────
 class _C {
   static const blue = Color(0xFF3B82F6);
   static const bgPage = Color(0xFFF0F4FF);
@@ -140,10 +140,9 @@ class _ProspectoFormState extends State<ProspectoForm> {
         if (_editando) {
           await widget.firestoreService.actualizarProspecto(p);
         } else {
-          // Mi apunte: Jalamos el ID del usuario logueado directamente de Auth
           final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
           await widget.firestoreService
-              .crearProspecto(p, uid); // ← Aquí pasamos el segundo parámetro
+              .crearProspecto(p, uid); 
         }
       }
 
@@ -370,7 +369,6 @@ class _ProspectoFormState extends State<ProspectoForm> {
   }
 
   // ─── Helpers de campo ──────────────────────────────────────────────────────
-
   Widget _field({
     required TextEditingController ctrl,
     required String fieldId,

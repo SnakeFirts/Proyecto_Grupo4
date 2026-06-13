@@ -6,7 +6,7 @@ import '../models/lead.dart';
 import '../models/prospecto.dart';
 import '../models/estado_opciones.dart';
 import '../services/firestore_service.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Mi apunte: Necesario para leer el usuario actual
+import 'package:firebase_auth/firebase_auth.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -35,9 +35,6 @@ Color _estadoColor(String e) {
   }
 }
 
-/// Formulario de CREAR o EDITAR un Lead.
-/// Si [lead] es null → modo creación.
-/// Si [prospectoOrigen] está dado → viene de conversión (campos prellenados).
 class LeadForm extends StatefulWidget {
   final Lead? lead;
   final Prospecto? prospectoOrigen;
@@ -161,7 +158,6 @@ class _LeadFormState extends State<LeadForm> {
     setState(() => _loading = true);
 
     try {
-      // Mi apunte: Primero armamos la caja (objeto Lead) con todo lo que llenó el usuario
       final leadData = Lead(
         id: widget.lead?.id,
         nameprospecto: _nombreCtrl.text.trim(),
@@ -175,11 +171,9 @@ class _LeadFormState extends State<LeadForm> {
         fechaCreacion: widget.lead?.fechaCreacion ?? DateTime.now(),
       );
 
-      // Mi apunte: Decidimos si actualizamos uno existente o creamos uno nuevo
       if (_editando) {
         await widget.firestoreService.actualizarLead(leadData);
       } else {
-        // Obtenemos el ID del vendedor logueado y lo inyectamos al crear el lead
         final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
         await widget.firestoreService.crearLead(leadData, uid);
       }
@@ -507,7 +501,6 @@ class _LeadFormState extends State<LeadForm> {
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
-
   Widget _field({
     required TextEditingController ctrl,
     required String fieldId,

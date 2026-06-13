@@ -9,7 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:rapilead/firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Mi apunte: Lo ocupamos para jalar y guardar los roles en la base de datos
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -101,9 +101,9 @@ class SessionManager {
   static const _keyAttempts = 'login_attempts';
   static const _keyLockout = 'lockout_until';
   static const _keyRol =
-      'rol_usuario'; // Mi apunte: Almacenar el rol local evita consultar Firestore en cada pantalla
+      'rol_usuario'; 
   static const _keyUid =
-      'uid_usuario'; // Mi apunte: Ocupamos el UID guardado para filtrar los Leads del vendedor logueado
+      'uid_usuario'; 
   static const _sessionDurationHours = 24;
   static const _maxAttempts = 5;
   static const _lockoutMinutes = 5;
@@ -115,8 +115,8 @@ class SessionManager {
         .millisecondsSinceEpoch;
     await prefs.setBool(_keySession, true);
     await prefs.setString(_keyEmail, email);
-    await prefs.setString(_keyUid, uid); // Guardamos la id de autenticación
-    await prefs.setString(_keyRol, rol); // Guardamos el rol (Vendedor / Admin)
+    await prefs.setString(_keyUid, uid); 
+    await prefs.setString(_keyRol, rol); 
     await prefs.setInt(_keyExpiry, expiry);
     await prefs.setInt(_keyAttempts, 0);
   }
@@ -139,7 +139,7 @@ class SessionManager {
     await prefs.remove(_keySession);
     await prefs.remove(_keyEmail);
     await prefs.remove(_keyExpiry);
-    await prefs.remove(_keyUid); // Limpieza de credenciales de perfil al salir
+    await prefs.remove(_keyUid); 
     await prefs.remove(_keyRol);
   }
 
@@ -437,7 +437,6 @@ class _LoginPageState extends State<LoginPage> {
 
       final uid = credential.user!.uid;
 
-      // Mi apunte: Traemos el rol guardado en Firestore para inicializar correctamente el Dashboard estructurado
       final userDoc = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(uid)
@@ -815,15 +814,13 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
 
       final uid = credential.user!.uid;
       await credential.user?.updateDisplayName(_nombreCtrl.text.trim());
-
-      // Mi apunte: Escribimos el perfil con su rol explícito
+      
       await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
         'nombre': _nombreCtrl.text.trim(),
         'email': email,
         'rol': rolElegido,
       });
 
-      // Mi apunte: Guardamos la sesión localmente
       await SessionManager.saveSession(email, uid, rolElegido);
 
       if (mounted) {

@@ -7,6 +7,7 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+ndkVersion = "27.0.12077973"
 
 android {
     namespace = "com.example.rapilead"

@@ -33,6 +33,7 @@ class LocalNotificationService {
     String? title,
     String? body,
     bool scheduled = false,
+    DateTime? scheduledDate,
   }) async {
     const details = NotificationDetails(
       android: AndroidNotificationDetails(

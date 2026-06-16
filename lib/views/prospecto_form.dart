@@ -3,15 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../models/prospecto.dart';
 import '../services/firestore_service.dart';
+import '../services/card_scanner_service.dart';
+import '../services/local_notification_service.dart';
+import '../services/fcm_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// ─── Colores ──────────────────────────────────────────
+// ─── Colores ───────────────────────────────────────────────────────────────────
 class _C {
   static const blue = Color(0xFF3B82F6);
   static const bgPage = Color(0xFFF0F4FF);
   static const bgCard = Color(0xFFFFFFFF);
   static const textDark = Color(0xFF0F172A);
-  static const textMedium = Color(0xFF475569);
   static const textGrey = Color(0xFF94A3B8);
   static const divider = Color(0xFFE2E8F0);
   static const red = Color(0xFFEF4444);
@@ -46,7 +48,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
   bool _loading = false;
   bool get _editando => widget.prospecto != null;
 
-  // ── Speech-to-text ──────────────────────────────────────────────────────────
+  // ── Speech-to-text ─────────────────────────────────────────────────────────
   final SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
   String? _activeField;
@@ -62,7 +64,6 @@ class _ProspectoFormState extends State<ProspectoForm> {
     _correoCtrl = TextEditingController(text: p?.correo ?? '');
     _telefonoCtrl = TextEditingController(text: p?.telefono ?? '');
     _movilCtrl = TextEditingController(text: p?.movil ?? '');
-
     _initSpeech();
   }
 
@@ -116,6 +117,97 @@ class _ProspectoFormState extends State<ProspectoForm> {
     super.dispose();
   }
 
+  // ── Escanear tarjeta ────────────────────────────────────────────────────────
+  Future<void> _escanearTarjeta() async {
+    final opcion = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: _C.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Escanear tarjeta',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: _C.blue),
+                title: const Text('Tomar foto'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.photo_library_outlined, color: _C.blue),
+                title: const Text('Elegir de galería'),
+                onTap: () => Navigator.pop(context, 'gallery'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (opcion == null) return;
+
+    setState(() => _loading = true);
+
+    try {
+      final result = opcion == 'camera'
+          ? await CardScannerService.escanearDesdeCamera()
+          : await CardScannerService.escanearDesdeGaleria();
+
+      if (result == null) return;
+
+      // Rellenar campos automáticamente
+      setState(() {
+        if (result.nombre.isNotEmpty) _nombreCtrl.text = result.nombre;
+        if (result.empresa.isNotEmpty) _companiaCtrl.text = result.empresa;
+        if (result.cargo.isNotEmpty) _cargoCtrl.text = result.cargo;
+        if (result.correo.isNotEmpty) _correoCtrl.text = result.correo;
+        if (result.telefono.isNotEmpty) _telefonoCtrl.text = result.telefono;
+        if (result.direccion.isNotEmpty) _direccionCtrl.text = result.direccion;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF22C55E),
+            content: Text('✅ Tarjeta escaneada — revisa los datos'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: _C.red,
+            content: Text('Error al escanear: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // ── Guardar ─────────────────────────────────────────────────────────────────
   Future<void> _guardar() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -134,16 +226,31 @@ class _ProspectoFormState extends State<ProspectoForm> {
         fechaCreacion: widget.prospecto?.fechaCreacion ?? DateTime.now(),
       );
 
+      final user = FirebaseAuth.instance.currentUser;
+      final userName = user?.displayName ?? user?.email ?? 'Un vendedor';
+
       if (_editando) {
         await widget.firestoreService.actualizarProspecto(p);
+
+        await LocalNotificationService.show(
+          title: '✏️ Prospecto actualizado',
+          body: '$userName actualizó a ${p.nombre}',
+        );
       } else {
-        if (_editando) {
-          await widget.firestoreService.actualizarProspecto(p);
-        } else {
-          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-          await widget.firestoreService
-              .crearProspecto(p, uid); 
-        }
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        await widget.firestoreService.crearProspecto(p, uid);
+
+        // Prioridad 1 — confirmación local para el vendedor
+        await LocalNotificationService.show(
+          title: '✅ Prospecto creado',
+          body: '$userName registró a ${p.nombre}',
+        );
+
+        // Prioridad 3 — notificación push al admin
+        await FcmService.notificarAdmins(
+          titulo: '👤 Nuevo prospecto',
+          cuerpo: '$userName agregó a ${p.nombre} de ${p.compania}',
+        );
       }
 
       if (mounted) {
@@ -181,7 +288,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ──────────────────────────────────────────────────────
+            // ── Header ───────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
@@ -212,6 +319,32 @@ class _ProspectoFormState extends State<ProspectoForm> {
                         color: _C.textDark),
                   ),
                 ]),
+                const Spacer(),
+                // Botón escanear tarjeta (solo al crear, no al editar)
+                if (!_editando)
+                  GestureDetector(
+                    onTap: _loading ? null : _escanearTarjeta,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _C.blue,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(children: [
+                        Icon(Icons.document_scanner_outlined,
+                            color: Colors.white, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'Escanear',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ]),
+                    ),
+                  ),
               ]),
             ),
             const SizedBox(height: 8),
@@ -314,7 +447,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
                       ),
                       const SizedBox(height: 24),
 
-                      // ── Botón guardar ─────────────────────────────────────
+                      // ── Botón guardar ───────────────────────────────────
                       SizedBox(
                         height: 54,
                         child: ElevatedButton(

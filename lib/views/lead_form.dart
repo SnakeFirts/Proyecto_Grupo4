@@ -8,6 +8,8 @@ import '../models/estado_opciones.dart';
 import '../services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/local_notification_service.dart';
+
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
   static const blue = Color(0xFF3B82F6);
@@ -171,11 +173,23 @@ class _LeadFormState extends State<LeadForm> {
         fechaCreacion: widget.lead?.fechaCreacion ?? DateTime.now(),
       );
 
+      final user = FirebaseAuth.instance.currentUser;
+      final userName = user?.displayName ?? user?.email ?? 'Un vendedor';
+
       if (_editando) {
         await widget.firestoreService.actualizarLead(leadData);
       } else {
         final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
         await widget.firestoreService.crearLead(leadData, uid);
+      }
+
+      if (_fechaSeleccionada != null) {
+        await LocalNotificationService.show(
+          title: '📅 Seguimiento pendiente',
+          body: 'Hoy tienes seguimiento con ${_nombreCtrl.text.trim()}',
+          scheduled: true,
+          scheduledDate: _fechaSeleccionada!,
+        );
       }
 
       if (mounted) {

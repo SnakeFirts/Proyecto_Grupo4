@@ -15,6 +15,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'services/firebase_api.dart';
 import 'services/local_notification_service.dart';
+import 'services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -382,6 +383,8 @@ class _LoginPageState extends State<LoginPage> {
 
         await SessionManager.saveSession(userCredential.user!.email!, uid, rol);
 
+        await FirebaseApi.guardarToken();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -455,6 +458,8 @@ class _LoginPageState extends State<LoginPage> {
           userDoc.exists ? (userDoc.data()?['rol'] ?? 'Vendedor') : 'Vendedor';
 
       await SessionManager.saveSession(credential.user!.email!, uid, rol);
+
+      await FirebaseApi.guardarToken();
 
       if (mounted) _navigateHome();
     } on FirebaseAuthException catch (e) {
@@ -832,6 +837,13 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
       });
 
       await SessionManager.saveSession(email, uid, rolElegido);
+
+      await FirebaseApi.guardarToken();
+
+      await FcmService.notificarAdmins(
+        titulo: '👤 Nuevo usuario registrado',
+        cuerpo: '${_nombreCtrl.text.trim()} se unió como $rolElegido',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

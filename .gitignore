@@ -8,6 +8,9 @@
 build/
 *.iml
 
+# .gitignore
+assets/service_account.json
+
 # Android
 android/.gradle
 android/captures/

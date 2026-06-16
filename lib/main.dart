@@ -14,6 +14,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -100,10 +104,8 @@ class SessionManager {
   static const _keyExpiry = 'sesion_expiry';
   static const _keyAttempts = 'login_attempts';
   static const _keyLockout = 'lockout_until';
-  static const _keyRol =
-      'rol_usuario'; 
-  static const _keyUid =
-      'uid_usuario'; 
+  static const _keyRol = 'rol_usuario';
+  static const _keyUid = 'uid_usuario';
   static const _sessionDurationHours = 24;
   static const _maxAttempts = 5;
   static const _lockoutMinutes = 5;
@@ -115,8 +117,8 @@ class SessionManager {
         .millisecondsSinceEpoch;
     await prefs.setBool(_keySession, true);
     await prefs.setString(_keyEmail, email);
-    await prefs.setString(_keyUid, uid); 
-    await prefs.setString(_keyRol, rol); 
+    await prefs.setString(_keyUid, uid);
+    await prefs.setString(_keyRol, rol);
     await prefs.setInt(_keyExpiry, expiry);
     await prefs.setInt(_keyAttempts, 0);
   }
@@ -139,7 +141,7 @@ class SessionManager {
     await prefs.remove(_keySession);
     await prefs.remove(_keyEmail);
     await prefs.remove(_keyExpiry);
-    await prefs.remove(_keyUid); 
+    await prefs.remove(_keyUid);
     await prefs.remove(_keyRol);
   }
 
@@ -501,7 +503,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 15),
                 Image.asset(
-                  'assets/images/RapiLead_tcwb27.png',
+                  'assets/images/rapilead.png',
                   fit: BoxFit.fitHeight,
                   width: 350,
                   height: 200,
@@ -814,7 +816,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
 
       final uid = credential.user!.uid;
       await credential.user?.updateDisplayName(_nombreCtrl.text.trim());
-      
+
       await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
         'nombre': _nombreCtrl.text.trim(),
         'email': email,
@@ -847,11 +849,11 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
         };
       });
     } catch (e) {
-    debugPrint('>>> ERROR REGISTRO: $e');
-    setState(() {
-      _loading = false;
-      _errorMsg = 'Error inesperado al crear la cuenta.';
-    });
+      debugPrint('>>> ERROR REGISTRO: $e');
+      setState(() {
+        _loading = false;
+        _errorMsg = 'Error inesperado al crear la cuenta.';
+      });
     }
   }
 

@@ -1,3 +1,4 @@
+// lib/admin_stats_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -76,7 +77,7 @@ class AdminInicioScreen extends StatelessWidget {
     final tasaConversion =
         totalLeads > 0 ? (leadsCompletados / totalLeads * 100) : 0.0;
 
-    // ── Datos para gráfica de línea: leads creados por día (últimos 7 días) ──
+    // ── Leads creados por día (últimos 7 días) ────────────────────────
     final Map<int, int> leadsPorDia = {};
     for (int i = 6; i >= 0; i--) {
       final dia =
@@ -91,7 +92,7 @@ class AdminInicioScreen extends StatelessWidget {
       leadsPorDia[6 - i] = count;
     }
 
-    // ── Datos para gráfica de barras: prospectos vs leads por vendedor ────────
+    // ── Agrupar leads y prospectos por userId ────────────────────────
     final Map<String, int> leadsPorUid = {};
     final Map<String, int> prospectosPorUid = {};
     for (final l in leads) {
@@ -113,7 +114,7 @@ class AdminInicioScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ───────────────────────────────────────────────────
+              // ── Header ───────────────────────────────────────────────
               Row(children: [
                 Container(
                   width: 46,
@@ -144,7 +145,7 @@ class AdminInicioScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 24),
 
-              // ── Banner global ─────────────────────────────────────────────
+              // ── Banner global ─────────────────────────────────────────
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -207,7 +208,7 @@ class AdminInicioScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // ── KPI grid ──────────────────────────────────────────────────
+              // ── KPI grid ─────────────────────────────────────────────
               const _SectionLabel('Estado de leads'),
               const SizedBox(height: 10),
               Row(children: [
@@ -222,22 +223,23 @@ class AdminInicioScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 24),
 
-              // ── Gráfica de línea: leads por día ───────────────────────────
+              // ── Gráfica de línea ──────────────────────────────────────
               const _SectionLabel('Leads creados — últimos 7 días'),
               const SizedBox(height: 10),
               _LineChart(leadsPorDia: leadsPorDia),
               const SizedBox(height: 24),
 
-              // ── Gráfica de barras: prospectos vs leads por vendedor ────────
+              // ── Gráfica de barras con nombres reales ──────────────────
+              // FIX: Usamos FutureBuilder para resolver nombres desde Firestore
               const _SectionLabel('Prospectos vs Leads por vendedor'),
               const SizedBox(height: 10),
-              _BarChart(
+              _BarChartConNombres(
                 leadsPorUid: leadsPorUid,
                 prospectosPorUid: prospectosPorUid,
               ),
               const SizedBox(height: 24),
 
-              // ── Barra de distribución ─────────────────────────────────────
+              // ── Barra de distribución ─────────────────────────────────
               if (totalLeads > 0) ...[
                 const _SectionLabel('Distribución de estados'),
                 const SizedBox(height: 10),
@@ -299,7 +301,118 @@ class AdminInicioScreen extends StatelessWidget {
       );
 }
 
-// ─── Gráfica de línea: leads creados por día ──────────────────────────────────
+// ─── FIX: Bar chart con nombres reales via Firestore ─────────────────────────
+// Resuelve los UIDs a nombres reales antes de renderizar
+class _BarChartConNombres extends StatefulWidget {
+  final Map<String, int> leadsPorUid;
+  final Map<String, int> prospectosPorUid;
+
+  const _BarChartConNombres({
+    required this.leadsPorUid,
+    required this.prospectosPorUid,
+  });
+
+  @override
+  State<_BarChartConNombres> createState() => _BarChartConNombresState();
+}
+
+class _BarChartConNombresState extends State<_BarChartConNombres> {
+  Map<String, String> _nombres = {}; // uid → nombre corto
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolverNombres();
+  }
+
+  @override
+  void didUpdateWidget(_BarChartConNombres old) {
+    super.didUpdateWidget(old);
+    // Si cambian los UIDs, volver a resolver
+    final uidsNuevos = {
+      ...widget.leadsPorUid.keys,
+      ...widget.prospectosPorUid.keys
+    };
+    final uidsViejos = {...old.leadsPorUid.keys, ...old.prospectosPorUid.keys};
+    if (uidsNuevos.length != uidsViejos.length ||
+        !uidsNuevos.every(uidsViejos.contains)) {
+      _resolverNombres();
+    }
+  }
+
+  Future<void> _resolverNombres() async {
+    final uids = {
+      ...widget.leadsPorUid.keys,
+      ...widget.prospectosPorUid.keys,
+    };
+    if (uids.isEmpty) {
+      if (mounted) setState(() => _cargando = false);
+      return;
+    }
+
+    final Map<String, String> nombres = {};
+    // Consultar en batches de 10 (límite de whereIn en Firestore)
+    final uidList = uids.toList();
+    for (int i = 0; i < uidList.length; i += 10) {
+      final batch =
+          uidList.sublist(i, i + 10 > uidList.length ? uidList.length : i + 10);
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final nombreCompleto = (data['nombre'] as String? ?? '').trim();
+          // Primera palabra del nombre, máx 8 chars
+          final partes = nombreCompleto.split(' ');
+          final primerNombre = partes.isNotEmpty ? partes[0] : doc.id;
+          nombres[doc.id] = primerNombre.length > 8
+              ? primerNombre.substring(0, 8)
+              : primerNombre;
+        }
+      } catch (_) {
+        // Si falla, usar primeras 6 letras del UID como fallback
+        for (final uid in batch) {
+          nombres[uid] = uid.length >= 6 ? uid.substring(0, 6) : uid;
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _nombres = nombres;
+        _cargando = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.divider),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: _C.blue, strokeWidth: 2),
+        ),
+      );
+    }
+
+    return _BarChart(
+      leadsPorUid: widget.leadsPorUid,
+      prospectosPorUid: widget.prospectosPorUid,
+      nombresResueltos: _nombres,
+    );
+  }
+}
+
+// ─── Gráfica de línea: leads creados por día ─────────────────────────────────
 class _LineChart extends StatelessWidget {
   final Map<int, int> leadsPorDia;
 
@@ -334,7 +447,7 @@ class _LineChart extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: 1,
-                  getDrawingHorizontalLine: (_) => FlLine(
+                  getDrawingHorizontalLine: (_) => const FlLine(
                     color: _C.divider,
                     strokeWidth: 1,
                   ),
@@ -346,11 +459,13 @@ class _LineChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 28,
                       interval: 1,
-                      getTitlesWidget: (v, _) => Text(
-                        v.toInt().toString(),
-                        style:
-                            const TextStyle(fontSize: 10, color: _C.textGrey),
-                      ),
+                      getTitlesWidget: (v, _) => v == v.floorToDouble()
+                          ? Text(
+                              v.toInt().toString(),
+                              style: const TextStyle(
+                                  fontSize: 10, color: _C.textGrey),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -360,7 +475,7 @@ class _LineChart extends StatelessWidget {
                       getTitlesWidget: (v, _) {
                         final dia = DateTime(hoy.year, hoy.month, hoy.day)
                             .subtract(Duration(days: 6 - v.toInt()));
-                        final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+                        const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
@@ -425,14 +540,16 @@ class _LineChart extends StatelessWidget {
   }
 }
 
-// ─── Gráfica de barras: prospectos vs leads por vendedor ──────────────────────
+// ─── Gráfica de barras: prospectos vs leads — con nombres reales ──────────────
 class _BarChart extends StatelessWidget {
   final Map<String, int> leadsPorUid;
   final Map<String, int> prospectosPorUid;
+  final Map<String, String> nombresResueltos;
 
   const _BarChart({
     required this.leadsPorUid,
     required this.prospectosPorUid,
+    required this.nombresResueltos,
   });
 
   @override
@@ -454,8 +571,11 @@ class _BarChart extends StatelessWidget {
       );
     }
 
-    final labels =
-        uids.map((u) => u.length >= 4 ? u.substring(0, 4) : u).toList();
+    // Nombre legible en vez de UID truncado
+    final labels = uids
+        .map((u) =>
+            nombresResueltos[u] ?? (u.length > 6 ? u.substring(0, 6) : u))
+        .toList();
 
     final maxY = uids.map((u) {
       final l = (leadsPorUid[u] ?? 0).toDouble();
@@ -471,19 +591,24 @@ class _BarChart extends StatelessWidget {
           BarChartRodData(
             toY: (prospectosPorUid[uid] ?? 0).toDouble(),
             color: _C.green,
-            width: 10,
+            width: 12,
             borderRadius: BorderRadius.circular(4),
           ),
           BarChartRodData(
             toY: (leadsPorUid[uid] ?? 0).toDouble(),
             color: _C.blue,
-            width: 10,
+            width: 12,
             borderRadius: BorderRadius.circular(4),
           ),
         ],
         barsSpace: 4,
       );
     });
+
+    // Ancho dinámico: si hay muchos vendedores, hacer scroll horizontal
+    final chartWidth =
+        (uids.length * 56.0).clamp(double.infinity, double.infinity);
+    final needsScroll = uids.length > 5;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 20, 20, 12),
@@ -496,54 +621,16 @@ class _BarChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 180,
-            child: BarChart(
-              BarChartData(
-                maxY: maxY < 1 ? 3 : maxY + 1,
-                minY: 0,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 1,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: _C.divider, strokeWidth: 1),
-                ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      getTitlesWidget: (v, _) => Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          labels[v.toInt()],
-                          style:
-                              const TextStyle(fontSize: 10, color: _C.textGrey),
-                        ),
-                      ),
+            height: 200,
+            child: needsScroll
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: uids.length * 60.0,
+                      child: _buildBarChart(barGroups, labels, maxY),
                     ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: 1,
-                      getTitlesWidget: (v, _) => Text(
-                        v.toInt().toString(),
-                        style:
-                            const TextStyle(fontSize: 10, color: _C.textGrey),
-                      ),
-                    ),
-                  ),
-                  rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                ),
-                barGroups: barGroups,
-              ),
-            ),
+                  )
+                : _buildBarChart(barGroups, labels, maxY),
           ),
           const SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -551,14 +638,86 @@ class _BarChart extends StatelessWidget {
             const SizedBox(width: 16),
             _legendDot(_C.blue, 'Leads'),
           ]),
-          const SizedBox(height: 6),
-          const Center(
-            child: Text(
-              'Eje X: primeras 4 letras del ID de vendedor',
-              style: TextStyle(fontSize: 10, color: _C.textGrey),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarChart(
+    List<BarChartGroupData> barGroups,
+    List<String> labels,
+    double maxY,
+  ) {
+    return BarChart(
+      BarChartData(
+        maxY: maxY < 1 ? 3 : maxY + 1,
+        minY: 0,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1,
+          getDrawingHorizontalLine: (_) =>
+              const FlLine(color: _C.divider, strokeWidth: 1),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= labels.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    labels[i],
+                    style: const TextStyle(fontSize: 10, color: _C.textGrey),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              },
             ),
           ),
-        ],
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: 1,
+              getTitlesWidget: (v, _) => v == v.floorToDouble()
+                  ? Text(
+                      v.toInt().toString(),
+                      style: const TextStyle(fontSize: 10, color: _C.textGrey),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        barGroups: barGroups,
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => _C.textDark,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final uid = {...leadsPorUid.keys, ...prospectosPorUid.keys}
+                  .toList()[groupIndex];
+              final nombre = nombresResueltos[uid] ?? uid;
+              final tipo = rodIndex == 0 ? 'Prospectos' : 'Leads';
+              return BarTooltipItem(
+                '$nombre\n$tipo: ${rod.toY.toInt()}',
+                const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

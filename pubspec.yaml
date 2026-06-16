@@ -81,7 +81,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/RapiLead_tcwb27.png
+    - assets/images/rapilead.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

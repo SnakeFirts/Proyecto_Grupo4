@@ -166,8 +166,7 @@ class _BitacoraView extends StatelessWidget {
                                 entrada: entradas[i],
                                 leadId: lead.id!,
                                 svc: svc,
-                                isAdmin:
-                                    isAdmin,
+                                isAdmin: isAdmin,
                               ),
                             );
                           },
@@ -206,8 +205,7 @@ class _EntradaCard extends StatelessWidget {
   final Map<String, dynamic> entrada;
   final String leadId;
   final FirestoreService svc;
-  final bool
-      isAdmin;
+  final bool isAdmin;
 
   const _EntradaCard({
     required this.entrada,
@@ -300,7 +298,7 @@ class _EntradaCard extends StatelessWidget {
               ]),
             ]),
           ),
-          
+
           if (isAdmin)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded,
@@ -536,174 +534,181 @@ class _NuevaEntradaPanel extends StatelessWidget {
         color: _C.bgCard,
         border: Border(top: BorderSide(color: _C.divider)),
       ),
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Tipo de interacción ──────────────────────────────────────────
-          Row(children: [
-            InteractionChip(
-              titulo: 'Llamada',
-              icono: Icons.call,
-              seleccionado: controller.tipoSeleccionado == 'Llamada',
-              onTap: () => controller.seleccionarTipo('Llamada'),
-            ),
-            InteractionChip(
-              titulo: 'Correo',
-              icono: Icons.email,
-              seleccionado: controller.tipoSeleccionado == 'Correo',
-              onTap: () => controller.seleccionarTipo('Correo'),
-            ),
-            InteractionChip(
-              titulo: 'Visita',
-              icono: Icons.directions_car_filled,
-              seleccionado: controller.tipoSeleccionado == 'Visita',
-              onTap: () => controller.seleccionarTipo('Visita'),
-            ),
-          ]),
-          const SizedBox(height: 12),
-
-          // ── GPS si es Visita ─────────────────────────────────────────────
-          if (controller.tipoSeleccionado == 'Visita') ...[
-            GpsCard(
-              cargando: controller.cargandoGps,
-              gpsCargado: controller.gpsCargado,
-              posicion: controller.posicion,
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // ── Comentario + micrófono (solo en Llamada) ─────────────────────
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: controller.comentarioController,
-                maxLines: 3,
-                minLines: 2,
-                decoration: InputDecoration(
-                  hintText: controller.getHint(),
-                  hintStyle: const TextStyle(color: _C.textGrey, fontSize: 13),
-                  filled: true,
-                  fillColor: _C.bgPage,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
+              // ── Tipo de interacción ──────────────────────────────────────────
+              Row(children: [
+                InteractionChip(
+                  titulo: 'Llamada',
+                  icono: Icons.call,
+                  seleccionado: controller.tipoSeleccionado == 'Llamada',
+                  onTap: () => controller.seleccionarTipo('Llamada'),
                 ),
-              ),
-              // Micrófono solo en Llamada
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                InteractionChip(
+                  titulo: 'Correo',
+                  icono: Icons.email,
+                  seleccionado: controller.tipoSeleccionado == 'Correo',
+                  onTap: () => controller.seleccionarTipo('Correo'),
+                ),
+                InteractionChip(
+                  titulo: 'Visita',
+                  icono: Icons.directions_car_filled,
+                  seleccionado: controller.tipoSeleccionado == 'Visita',
+                  onTap: () => controller.seleccionarTipo('Visita'),
+                ),
+              ]),
+              const SizedBox(height: 12),
+
+              // ── GPS si es Visita ─────────────────────────────────────────────
+              if (controller.tipoSeleccionado == 'Visita') ...[
+                GpsCard(
+                  cargando: controller.cargandoGps,
+                  gpsCargado: controller.gpsCargado,
+                  posicion: controller.posicion,
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── Comentario + micrófono (solo en Llamada) ─────────────────────
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    controller.isListening ? 'Escuchando...' : 'Dictar nota',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: controller.isListening ? _C.red : _C.textGrey,
+                  TextField(
+                    controller: controller.comentarioController,
+                    maxLines: 3,
+                    minLines: 2,
+                    decoration: InputDecoration(
+                      hintText: controller.getHint(),
+                      hintStyle:
+                          const TextStyle(color: _C.textGrey, fontSize: 13),
+                      filled: true,
+                      fillColor: _C.bgPage,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () {
-                      if (controller.isListening) {
-                        controller.stopListening();
-                      } else {
-                        controller.startListening();
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: controller.isListening
-                            ? _C.red.withValues(alpha: 0.1)
-                            : _C.blue.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: controller.isListening
-                              ? _C.red.withValues(alpha: 0.3)
-                              : _C.blue.withValues(alpha: 0.2),
+                  // Micrófono solo en Llamada
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        controller.isListening
+                            ? 'Escuchando...'
+                            : 'Dictar nota',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: controller.isListening ? _C.red : _C.textGrey,
                         ),
                       ),
-                      child: Icon(
-                        controller.isListening
-                            ? Icons.mic_rounded
-                            : Icons.mic_none_rounded,
-                        color: controller.isListening ? _C.red : _C.blue,
-                        size: 18,
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () {
+                          if (controller.isListening) {
+                            controller.stopListening();
+                          } else {
+                            controller.startListening();
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: controller.isListening
+                                ? _C.red.withValues(alpha: 0.1)
+                                : _C.blue.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: controller.isListening
+                                  ? _C.red.withValues(alpha: 0.3)
+                                  : _C.blue.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Icon(
+                            controller.isListening
+                                ? Icons.mic_rounded
+                                : Icons.mic_none_rounded,
+                            color: controller.isListening ? _C.red : _C.blue,
+                            size: 18,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+
+              // ── Botón registrar ──────────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: lead.id == null
+                      ? null
+                      : () async {
+                          final comentario =
+                              controller.comentarioController.text.trim();
+                          if (comentario.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Escribe un comentario')),
+                            );
+                            return;
+                          }
+
+                          await svc.guardarBitacora(
+                            leadId: lead.id!,
+                            tipoInteraccion: controller.tipoSeleccionado,
+                            comentario: comentario,
+                            latitud: controller.posicion?.latitude,
+                            longitud: controller.posicion?.longitude,
+                          );
+
+                          controller.comentarioController.clear();
+                          controller.seleccionarTipo('Llamada');
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                backgroundColor: _C.green,
+                                content: Text('Entrada registrada'),
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _C.blue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    controller.tipoSeleccionado == 'Visita'
+                        ? 'Confirmar Check-In'
+                        : 'Registrar entrada',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // ── Botón registrar ──────────────────────────────────────────────
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: lead.id == null
-                  ? null
-                  : () async {
-                      final comentario =
-                          controller.comentarioController.text.trim();
-                      if (comentario.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Escribe un comentario')),
-                        );
-                        return;
-                      }
-
-                      await svc.guardarBitacora(
-                        leadId: lead.id!,
-                        tipoInteraccion: controller.tipoSeleccionado,
-                        comentario: comentario,
-                        latitud: controller.posicion?.latitude,
-                        longitud: controller.posicion?.longitude,
-                      );
-
-                      controller.comentarioController.clear();
-                      controller.seleccionarTipo('Llamada');
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            backgroundColor: _C.green,
-                            content: Text('Entrada registrada'),
-                          ),
-                        );
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _C.blue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Text(
-                controller.tipoSeleccionado == 'Visita'
-                    ? 'Confirmar Check-In'
-                    : 'Registrar entrada',
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Prospecto {
   final String? id;
-  String?
-      userId; //Saber que vendedor creo el prospecto, para mostrar solo los prospectos de ese vendedor
+  // Lo ideal es dejarlo como 'final' para mantener la inmutabilidad si usas copyWith
+  final String? userId;
   String compania;
   String nombre;
   String direccion;
@@ -13,9 +13,10 @@ class Prospecto {
   String movil;
   DateTime? fechaCreacion;
 
+  // ─── SOLUCIÓN AQUÍ ────────────────────────────────────────────────────────
   Prospecto({
     this.id,
-    String? userId,
+    this.userId, // <--- CAMBIADO: Ahora asigna directamente a la propiedad de la clase
     required this.compania,
     required this.nombre,
     required this.direccion,
@@ -30,7 +31,7 @@ class Prospecto {
 
   Map<String, dynamic> toMap() {
     return {
-      'userId': userId, //Guardamos el dueno del prospecto
+      'userId': userId,
       'compania': compania,
       'nombre': nombre,
       'direccion': direccion,
@@ -47,7 +48,8 @@ class Prospecto {
   factory Prospecto.fromMap(Map<String, dynamic> map, String docId) {
     return Prospecto(
       id: docId,
-      userId: map['userId'], //Obtenemos el dueno del prospecto
+      userId: map['userId']
+          as String?, // Ahora sí se guardará en la propiedad global
       compania: map['compania'] ?? '',
       nombre: map['nombre'] ?? '',
       direccion: map['direccion'] ?? '',
@@ -61,7 +63,7 @@ class Prospecto {
 
   factory Prospecto.fromDoc(DocumentSnapshot doc) {
     return Prospecto.fromMap(
-      doc.data() as Map<String, dynamic>,
+      doc.data() as Map<String, dynamic>? ?? {},
       doc.id,
     );
   }

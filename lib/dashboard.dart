@@ -14,6 +14,7 @@ import 'views/bitacora_screen.dart';
 import 'main.dart';
 
 import 'admin_stats_screen.dart';
+import 'views/vendedor_chart_widget.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -406,6 +407,16 @@ class InicioScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 _kpiCard('$visitasHoy', 'Hoy', _C.green),
               ]),
+              const SizedBox(height: 24),
+
+              // ── Actividad semanal ─────────────────────────────────────────
+              const Text('Actividad semanal',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              const SizedBox(height: 10),
+              VendedorChart(leads: leads),
               const SizedBox(height: 24),
 
               // ── Acceso rápido ─────────────────────────────────────────────
@@ -1932,97 +1943,100 @@ void _mostrarAccionesLead({
   showModalBottomSheet(
     context: context,
     backgroundColor: _C.bgCard,
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) => SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: _C.divider,
-                  borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _C.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Text(l.nameprospecto,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _C.textDark)),
-            Text(l.infoprospecto.isEmpty ? l.estado : l.infoprospecto,
-                style: const TextStyle(fontSize: 13, color: _C.textGrey)),
-            const SizedBox(height: 16),
-            _accionTile(
-              icon: Icons.menu_book_outlined,
-              color: _C.blue,
-              label: 'Ver bitácora',
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => BitacoraScreen(
-                            lead: l, svc: svc, isAdmin: isAdmin)));
-              },
-            ),
-            _accionTile(
-              icon: Icons.edit_outlined,
-              color: _C.blue,
-              label: 'Editar lead',
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            LeadForm(lead: l, firestoreService: svc)));
-              },
-            ),
-            if (l.telefono.isNotEmpty)
+              Text(l.nameprospecto,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textDark)),
+              Text(l.infoprospecto.isEmpty ? l.estado : l.infoprospecto,
+                  style: const TextStyle(fontSize: 13, color: _C.textGrey)),
+              const SizedBox(height: 16),
               _accionTile(
-                icon: Icons.phone_outlined,
-                color: _C.green,
-                label: 'Llamar — ${l.telefono}',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _llamar(l.telefono);
-                },
-              ),
-            if (l.correo.isNotEmpty)
-              _accionTile(
-                icon: Icons.mail_outline_rounded,
+                icon: Icons.menu_book_outlined,
                 color: _C.blue,
-                label: 'Enviar correo',
+                label: 'Ver bitácora',
                 onTap: () {
                   Navigator.pop(ctx);
-                  _enviarCorreo(l.correo, nombre: l.nameprospecto);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => BitacoraScreen(
+                              lead: l, svc: svc, isAdmin: isAdmin)));
                 },
               ),
-            if (isAdmin) ...[
-              const Divider(height: 24, color: _C.divider),
               _accionTile(
-                icon: Icons.delete_outline_rounded,
-                color: _C.red,
-                label: 'Eliminar lead',
-                onTap: () async {
+                icon: Icons.edit_outlined,
+                color: _C.blue,
+                label: 'Editar lead',
+                onTap: () {
                   Navigator.pop(ctx);
-                  final ok = await _confirmarEliminacion(
-                      context, 'lead', l.nameprospecto);
-                  if (ok && l.id != null) onDelete(l.id!, l, l.nameprospecto);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              LeadForm(lead: l, firestoreService: svc)));
                 },
               ),
+              if (l.telefono.isNotEmpty)
+                _accionTile(
+                  icon: Icons.phone_outlined,
+                  color: _C.green,
+                  label: 'Llamar — ${l.telefono}',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _llamar(l.telefono);
+                  },
+                ),
+              if (l.correo.isNotEmpty)
+                _accionTile(
+                  icon: Icons.mail_outline_rounded,
+                  color: _C.blue,
+                  label: 'Enviar correo',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _enviarCorreo(l.correo, nombre: l.nameprospecto);
+                  },
+                ),
+              if (isAdmin) ...[
+                const Divider(height: 24, color: _C.divider),
+                _accionTile(
+                  icon: Icons.delete_outline_rounded,
+                  color: _C.red,
+                  label: 'Eliminar lead',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final ok = await _confirmarEliminacion(
+                        context, 'lead', l.nameprospecto);
+                    if (ok && l.id != null) onDelete(l.id!, l, l.nameprospecto);
+                  },
+                ),
+              ],
+              const SizedBox(height: 4),
             ],
-            const SizedBox(height: 4),
-          ],
+          ),
         ),
       ),
     ),

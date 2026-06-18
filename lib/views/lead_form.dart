@@ -9,6 +9,7 @@ import '../services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/local_notification_service.dart';
+import '../services/erpnext_service.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -66,6 +67,9 @@ class _LeadFormState extends State<LeadForm> {
   String _estadoSeleccionado = 'Abierto';
   bool _loading = false;
 
+  // Servicio de integración con ERPNext (cuando un lead se completa, pasa a cotización)
+  final _erpnextService = ErpNextService();
+
   // ── Speech-to-text ──────────────────────────────────────────────────────────
   final SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
@@ -110,7 +114,7 @@ class _LeadFormState extends State<LeadForm> {
       await _speechToText.listen(
         onResult: (result) =>
             setState(() => ctrl.text = result.recognizedWords),
-        localeId: 'es_HN',
+        listenOptions: SpeechListenOptions(localeId: 'es_HN'),
       );
       setState(() => _activeField = fieldId);
     }
@@ -154,6 +158,98 @@ class _LeadFormState extends State<LeadForm> {
     if (picked != null) setState(() => _fechaSeleccionada = picked);
   }
 
+  // ── Enviar cotización a ERPNext manualmente (botón avión) ──────────────
+  // Se activa cuando el usuario toca el ícono de avión en el header.
+  // Valida que el lead esté guardado y tiene detalle, y muestra
+  // un diálogo de confirmación antes de enviar.
+  Future<void> _enviarCotizacionERPNext() async {
+    // Construimos el lead con los datos actuales del formulario
+    final leadData = Lead(
+      id: widget.lead?.id,
+      nameprospecto: _nombreCtrl.text.trim(),
+      prospectoId: widget.lead?.prospectoId ?? widget.prospectoOrigen?.id,
+      infoprospecto: _infoCtrl.text.trim(),
+      fecha: _fechaSeleccionada,
+      detalle: _detalleCtrl.text.trim(),
+      estado: _estadoSeleccionado,
+      telefono: _telefonoCtrl.text.trim(),
+      correo: _correoCtrl.text.trim().toLowerCase(),
+      fechaCreacion: widget.lead?.fechaCreacion ?? DateTime.now(),
+    );
+
+    if (leadData.detalle.isEmpty && leadData.nameprospecto.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Primero ingresa el nombre y las notas del lead'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Mostramos el diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.send_rounded, color: Color(0xFF22C55E), size: 22),
+            SizedBox(width: 8),
+            Text('Enviar a ERPNext'),
+          ],
+        ),
+        content: Text(
+          '¿Desea crear la cotización para "${leadData.nameprospecto}" en ERPNext ahora?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Después', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: _C.green),
+            child: const Text('Crear ahora'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return; // El usuario eligió "Después"
+
+    // Enviamos a ERPNext
+    setState(() => _loading = true);
+    try {
+      final resultado =
+          await _erpnextService.sincronizarLeadCompletado(leadData);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: _C.green,
+            content: Text(
+                '✅ Cotización ${resultado["cotizacion"]} creada en ERPNext'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.orange,
+            content: Text(
+              '⚠️ Error: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}...' : e.toString()}',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // ── Guardar lead ──────────────────────────────────────────────────────────
   Future<void> _guardar() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -173,9 +269,6 @@ class _LeadFormState extends State<LeadForm> {
         fechaCreacion: widget.lead?.fechaCreacion ?? DateTime.now(),
       );
 
-      final user = FirebaseAuth.instance.currentUser;
-      final userName = user?.displayName ?? user?.email ?? 'Un vendedor';
-
       if (_editando) {
         await widget.firestoreService.actualizarLead(leadData);
       } else {
@@ -192,15 +285,70 @@ class _LeadFormState extends State<LeadForm> {
         );
       }
 
+      // ── Sincronización con ERPNext ────────────────────────────────────────
+      // Cuando el lead pasa a "Completado", preguntamos si desea crear
+      // la cotización en ERPNext ahora o después.
+      String? erpNextMsg;
+      if (_estadoSeleccionado == 'Completado') {
+        final confirmar = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.send_rounded, color: Color(0xFF22C55E), size: 22),
+                SizedBox(width: 8),
+                Text('Crear cotización'),
+              ],
+            ),
+            content: Text(
+              '¿Desea crear la cotización en ERPNext para "${leadData.nameprospecto}" ahora?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child:
+                    const Text('Después', style: TextStyle(color: Colors.grey)),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: _C.green),
+                child: const Text('Crear ahora'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmar == true) {
+          try {
+            final resultado =
+                await _erpnextService.sincronizarLeadCompletado(leadData);
+            erpNextMsg =
+                'ERPNext: cotización ${resultado["cotizacion"]} creada';
+          } catch (e) {
+            erpNextMsg =
+                '⚠️ ERPNext no disponible: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}...' : e.toString()}';
+          }
+        } else {
+          erpNextMsg =
+              'Cotización pendiente — puedes enviarla después con el botón ✈️';
+        }
+      }
+
       if (mounted) {
+        // Mostramos el resultado (con o sin ERPNext)
+        final msgBase = _editando
+            ? 'Lead actualizado exitosamente'
+            : 'Lead creado exitosamente';
+        final msgFinal =
+            erpNextMsg != null ? '$msgBase | $erpNextMsg' : msgBase;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: _C.blue,
-            content: Text(
-              _editando
-                  ? 'Lead actualizado exitosamente'
-                  : 'Lead creado exitosamente',
-            ),
+            content: Text(msgFinal),
+            duration: const Duration(seconds: 4),
           ),
         );
         Navigator.pop(context, true);
@@ -260,8 +408,27 @@ class _LeadFormState extends State<LeadForm> {
                         color: _C.textDark),
                   ),
                 ]),
+                const Spacer(),
+                // ── Botón de avión: enviar cotización a ERPNext manualmente ──
+                // Solo aparece cuando estamos editando un lead existente.
+                if (_editando)
+                  InkWell(
+                    onTap: _enviarCotizacionERPNext,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _C.green.withValues(alpha: 0.1),
+                        border:
+                            Border.all(color: _C.green.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.send_rounded,
+                          size: 18, color: _C.green),
+                    ),
+                  ),
                 if (_desdeProspecto) ...[
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

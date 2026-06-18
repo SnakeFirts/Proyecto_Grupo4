@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models/prospecto.dart';
 import 'models/lead.dart';
 import 'services/firestore_service.dart';
+import 'services/erpnext_service.dart';
 import 'views/prospecto_form.dart';
 import 'views/lead_form.dart';
 import 'views/bitacora_screen.dart';
@@ -1222,10 +1223,84 @@ class BitacoraTabScreen extends StatefulWidget {
 
 class _BitacoraTabScreenState extends State<BitacoraTabScreen> {
   final _svc = FirestoreService();
+  final _erpnextService = ErpNextService();
 
+  /// Cambia el estado de un Lead y, si pasa a "Completado",
+  /// pregunta si desea crear la cotización en ERPNext ahora o después.
   Future<void> _cambiarEstado(Lead lead, String nuevoEstado) async {
     if (lead.id == null) return;
+
+    // Actualizamos el estado en Firestore
     await _svc.actualizarEstadoLead(lead.id!, nuevoEstado);
+
+    // Si se completó, preguntamos si desea crear la cotización
+    if (nuevoEstado == 'Completado') {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.send_rounded, color: Color(0xFF22C55E), size: 22),
+              SizedBox(width: 8),
+              Text('Crear cotización'),
+            ],
+          ),
+          content: Text(
+            '¿Desea crear la cotización en ERPNext para "${lead.nameprospecto}" ahora?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  const Text('Después', style: TextStyle(color: Colors.grey)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+              child: const Text('Crear ahora'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar == true) {
+        try {
+          final resultado =
+              await _erpnextService.sincronizarLeadCompletado(lead);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    '✅ Cotización ${resultado["cotizacion"]} creada en ERPNext'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    '⚠️ No se pudo sincronizar con ERPNext: ${e.toString().length > 60 ? '${e.toString().substring(0, 60)}...' : e.toString()}'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Cotización pendiente — envíala después con el botón ✈️'),
+              backgroundColor: Colors.blueGrey,
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -1466,7 +1541,7 @@ class _LeadCardStackState extends State<_LeadCardStack> {
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Marcar como Perdido'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _C.red.withOpacity(0.1),
+                      backgroundColor: _C.red.withValues(alpha: 0.1),
                       foregroundColor: _C.red,
                       elevation: 0,
                       side: const BorderSide(

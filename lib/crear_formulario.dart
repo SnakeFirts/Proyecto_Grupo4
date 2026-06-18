@@ -5,6 +5,7 @@ import 'models/prospecto.dart';
 import 'models/estado_opciones.dart';
 import 'services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'services/erpnext_service.dart';
 
 class CrearPersonaForm extends StatefulWidget {
   final bool isProspecto;
@@ -84,7 +85,7 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
         onResult: (result) {
           setState(() => controller.text = result.recognizedWords);
         },
-        localeId: 'es_HN',
+        listenOptions: SpeechListenOptions(localeId: 'es_HN'),
       );
       setState(() => _activeField = fieldId);
     }
@@ -172,12 +173,84 @@ class _CrearPersonaFormState extends State<CrearPersonaForm> {
           estado: _correoEstadoController.text,
         );
 
+        final erpNextService = ErpNextService();
+
         if (esEdicion) {
           await service.actualizarLead(lead);
           widget.handleOnCreateLead?.call(lead);
         } else {
           final id = await service.crearLead(lead, uid);
           widget.handleOnCreateLead?.call(lead.copyWith(id: id));
+        }
+
+        // ── Sincronizar con ERPNext si el lead pasa a "Completado" ──────
+        // Preguntamos si desea crear la cotización ahora o después.
+        if (_correoEstadoController.text == 'Completado') {
+          final confirmar = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.send_rounded, color: Color(0xFF22C55E), size: 22),
+                  SizedBox(width: 8),
+                  Text('Crear cotización'),
+                ],
+              ),
+              content: Text(
+                '¿Desea crear la cotización en ERPNext para "${lead.nameprospecto}" ahora?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Después',
+                      style: TextStyle(color: Colors.grey)),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.green),
+                  child: const Text('Crear ahora'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmar == true) {
+            try {
+              final resultado =
+                  await erpNextService.sincronizarLeadCompletado(lead);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'ERPNext: cotización ${resultado["cotizacion"]} creada'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        '⚠️ ERPNext no disponible: ${e.toString().length > 60 ? '${e.toString().substring(0, 60)}...' : e.toString()}'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Cotización pendiente — envíala después con el botón ✈️'),
+                  backgroundColor: Colors.blueGrey,
+                ),
+              );
+            }
+          }
         }
       }
 

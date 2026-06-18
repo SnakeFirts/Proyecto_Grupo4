@@ -301,7 +301,7 @@ Widget _primaryButton({
       ),
     );
 
-final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
+final GoogleSignIn _googleSignIn = GoogleSignIn();
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
 class LoginPage extends StatefulWidget {
@@ -399,12 +399,14 @@ class _LoginPageState extends State<LoginPage> {
         _loading = false;
         _errorMsg = 'Error con Firebase: ${e.message}';
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Google Auth Error: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
       setState(() {
         _loading = false;
-        _errorMsg = 'Error al conectar con Google.';
+        _errorMsg = e.toString();
       });
-      debugPrint("Google Auth Error: $e");
     }
   }
 

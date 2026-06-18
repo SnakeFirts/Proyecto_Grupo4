@@ -43,11 +43,11 @@ dependencies:
   url_launcher: ^6.3.0
   local_auth: ^2.3.0
   firebase_core: ^3.15.2
-  firebase_auth: ^5.0.0
-  google_sign_in: ^6.2.1
+  firebase_auth: ^5.6.2
+  google_sign_in: ^6.3.0
   font_awesome_flutter: ^10.7.0
   intl: ^0.19.0
-  cloud_firestore: ^5.0.0
+  cloud_firestore: ^5.6.11
   speech_to_text: ^7.3.0
   fl_chart: ^1.2.0
   firebase_messaging: ^15.2.10

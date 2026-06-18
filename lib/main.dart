@@ -301,7 +301,7 @@ Widget _primaryButton({
       ),
     );
 
-final GoogleSignIn _googleSignIn = GoogleSignIn();
+final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
 // ─── LoginPage ────────────────────────────────────────────────────────────────
 class LoginPage extends StatefulWidget {
@@ -399,14 +399,12 @@ class _LoginPageState extends State<LoginPage> {
         _loading = false;
         _errorMsg = 'Error con Firebase: ${e.message}';
       });
-    } catch (e, stackTrace) {
-      debugPrint('Google Auth Error: $e');
-      debugPrintStack(stackTrace: stackTrace);
-
+    } catch (e) {
       setState(() {
         _loading = false;
-        _errorMsg = e.toString();
+        _errorMsg = 'Error al conectar con Google.';
       });
+      debugPrint("Google Auth Error: $e");
     }
   }
 
@@ -550,10 +548,12 @@ class _LoginPageState extends State<LoginPage> {
                               hint: 'correo@empresa.com',
                               focused: _emailFocus),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return 'Ingresa tu correo';
-                            if (!SecurityHelper.isValidEmail(v))
+                            }
+                            if (!SecurityHelper.isValidEmail(v)) {
                               return 'Formato inválido';
+                            }
                             return null;
                           },
                         ),
@@ -583,8 +583,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Ingresa tu contraseña';
+                            }
                             if (v.length < 6) return 'Mínimo 6 caracteres';
                             return null;
                           },
@@ -1003,10 +1004,12 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                             icon: Icons.mail_outline,
                             hint: 'correo@empresa.com'),
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty)
+                          if (v == null || v.trim().isEmpty) {
                             return 'Ingresa un correo';
-                          if (!SecurityHelper.isValidEmail(v))
+                          }
+                          if (!SecurityHelper.isValidEmail(v)) {
                             return 'Formato inválido';
+                          }
                           return null;
                         },
                       ),
@@ -1295,10 +1298,12 @@ class _RecuperarAccesoPageState extends State<RecuperarAccesoPage> {
                       focused: _emailFocus,
                     ),
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty)
+                      if (v == null || v.trim().isEmpty) {
                         return 'Ingresa tu correo';
-                      if (!SecurityHelper.isValidEmail(v))
+                      }
+                      if (!SecurityHelper.isValidEmail(v)) {
                         return 'Formato inválido';
+                      }
                       return null;
                     },
                   ),

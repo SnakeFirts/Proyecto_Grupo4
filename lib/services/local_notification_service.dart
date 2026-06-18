@@ -48,16 +48,38 @@ class LocalNotificationService {
       final when = tz.TZDateTime.now(tz.local).add(
         const Duration(seconds: 5),
       );
-      await _plugin.zonedSchedule(
-        0,
-        title ?? '',
-        body ?? '',
-        when,
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
+
+      try {
+        // Intentar con alarmas exactas (funciona en Android 12-13,
+        // requiere permiso SCHEDULE_EXACT_ALARM en Android 14+)
+        await _plugin.zonedSchedule(
+          0,
+          title ?? '',
+          body ?? '',
+          when,
+          details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+        );
+      } catch (_) {
+        try {
+          // Fallback: intentar con alarma inexacta
+          await _plugin.zonedSchedule(
+            0,
+            title ?? '',
+            body ?? '',
+            when,
+            details,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+          );
+        } catch (_) {
+          // Último fallback: notificación inmediata
+          await _plugin.show(0, title ?? '', body ?? '', details);
+        }
+      }
     } else {
       await _plugin.show(0, title ?? '', body ?? '', details);
     }

@@ -82,7 +82,7 @@ class _ProspectoFormState extends State<ProspectoForm> {
       await _speechToText.listen(
         onResult: (result) =>
             setState(() => ctrl.text = result.recognizedWords),
-        localeId: 'es_HN',
+        listenOptions: SpeechListenOptions(localeId: 'es_HN'),
       );
       setState(() => _activeField = fieldId);
     }

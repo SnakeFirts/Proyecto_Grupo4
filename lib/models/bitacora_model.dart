@@ -3,6 +3,7 @@ class BitacoraModel {
   final String comentario;
   final double? latitud;
   final double? longitud;
+  final double? kilometros; // Solo se registra en visitas
   final DateTime fecha;
 
   BitacoraModel({
@@ -10,6 +11,7 @@ class BitacoraModel {
     required this.comentario,
     this.latitud,
     this.longitud,
+    this.kilometros,
     required this.fecha,
   });
 
@@ -19,6 +21,7 @@ class BitacoraModel {
       'comentario': comentario,
       'latitud': latitud,
       'longitud': longitud,
+      'kilometros': kilometros,
       'fecha': fecha.toIso8601String(),
     };
   }

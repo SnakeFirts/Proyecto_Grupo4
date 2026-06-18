@@ -14,6 +14,9 @@ class BitacoraController extends ChangeNotifier {
   bool gpsCargado = false;
   Position? posicion;
 
+  // ── Kilómetros (solo para Visitas) ────────────────────
+  final kilometrosController = TextEditingController();
+
   // ── Speech ──────────────────────────────────────────
   bool isListening = false;
   bool speechEnabled = false;
@@ -34,7 +37,7 @@ class BitacoraController extends ChangeNotifier {
         comentarioController.text = result.recognizedWords;
         notifyListeners();
       },
-      localeId: 'es_HN',
+      listenOptions: SpeechListenOptions(localeId: 'es_HN'),
     );
     isListening = true;
     notifyListeners();
@@ -52,6 +55,7 @@ class BitacoraController extends ChangeNotifier {
     gpsCargado = false;
     cargandoGps = false;
     posicion = null;
+    kilometrosController.clear();
     if (isListening) await stopListening(); // ← detener mic al cambiar tipo
     notifyListeners();
     if (tipo == 'Visita') {
@@ -89,12 +93,20 @@ class BitacoraController extends ChangeNotifier {
     }
   }
 
+  /// Obtiene los kilómetros ingresados (null si no es visita o está vacío)
+  double? get kilometros {
+    final texto = kilometrosController.text.trim();
+    if (texto.isEmpty) return null;
+    return double.tryParse(texto);
+  }
+
   BitacoraModel generarBitacora() {
     return BitacoraModel(
       tipoInteraccion: tipoSeleccionado,
       comentario: comentarioController.text,
       latitud: posicion?.latitude,
       longitud: posicion?.longitude,
+      kilometros: kilometros,
       fecha: DateTime.now(),
     );
   }

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'models/prospecto.dart';
 import 'models/lead.dart';
+import 'services/firestore_service.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 class _C {
@@ -237,6 +238,14 @@ class AdminInicioScreen extends StatelessWidget {
                 leadsPorUid: leadsPorUid,
                 prospectosPorUid: prospectosPorUid,
               ),
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 24),
+
+              // ── Gráfica de kilómetros por vendedor ───────────────────
+              const _SectionLabel('Kilómetros recorridos por vendedor'),
+              const SizedBox(height: 10),
+              const _KmChartConNombres(),
               const SizedBox(height: 24),
 
               // ── Barra de distribución ─────────────────────────────────
@@ -605,9 +614,6 @@ class _BarChart extends StatelessWidget {
       );
     });
 
-    // Ancho dinámico: si hay muchos vendedores, hacer scroll horizontal
-    final chartWidth =
-        (uids.length * 56.0).clamp(double.infinity, double.infinity);
     final needsScroll = uids.length > 5;
 
     return Container(
@@ -730,6 +736,295 @@ class _BarChart extends StatelessWidget {
         const SizedBox(width: 5),
         Text(label, style: const TextStyle(fontSize: 11, color: _C.textGrey)),
       ]);
+}
+
+// ─── Gráfica de barras: kilómetros por vendedor ──────────────────────────────
+class _KmChartConNombres extends StatefulWidget {
+  const _KmChartConNombres();
+
+  @override
+  State<_KmChartConNombres> createState() => _KmChartConNombresState();
+}
+
+class _KmChartConNombresState extends State<_KmChartConNombres> {
+  Map<String, double> _kmPorUsuario = {};
+  Map<String, String> _nombres = {};
+  bool _cargando = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    try {
+      final servicio = FirestoreService();
+      final kmData = await servicio.obtenerKilometrosPorUsuario();
+
+      // Resolver nombres desde Firestore
+      final Map<String, String> nombres = {};
+      final uidList = kmData.keys.toList();
+      for (int i = 0; i < uidList.length; i += 10) {
+        final batch = uidList.sublist(
+            i, i + 10 > uidList.length ? uidList.length : i + 10);
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('usuarios')
+              .where(FieldPath.documentId, whereIn: batch)
+              .get();
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final nombreCompleto = (data['nombre'] as String? ?? '').trim();
+            final partes = nombreCompleto.split(' ');
+            final primerNombre = partes.isNotEmpty ? partes[0] : doc.id;
+            nombres[doc.id] = primerNombre.length > 10
+                ? primerNombre.substring(0, 10)
+                : primerNombre;
+          }
+        } catch (_) {
+          for (final uid in batch) {
+            nombres[uid] = uid.length >= 6 ? uid.substring(0, 6) : uid;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _kmPorUsuario = kmData;
+          _nombres = nombres;
+          _cargando = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _cargando = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.divider),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: _C.purple, strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.divider),
+        ),
+        child: Center(
+          child: Text('Error al cargar km: $_error',
+              style: const TextStyle(color: _C.red, fontSize: 12)),
+        ),
+      );
+    }
+
+    final entries = _kmPorUsuario.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    if (entries.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _C.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.divider),
+        ),
+        child: const Center(
+          child: Text('Sin datos de kilómetros aún',
+              style: TextStyle(color: _C.textGrey)),
+        ),
+      );
+    }
+
+    final labels = entries
+        .map((e) =>
+            _nombres[e.key] ??
+            (e.key.length > 6 ? e.key.substring(0, 6) : e.key))
+        .toList();
+    final values = entries.map((e) => e.value).toList();
+    final maxY = values.reduce((a, b) => a > b ? a : b);
+
+    final barGroups = List.generate(entries.length, (i) {
+      return BarChartGroupData(
+        x: i,
+        barRods: [
+          BarChartRodData(
+            toY: values[i],
+            color: _C.purple,
+            width: 16,
+            borderRadius: BorderRadius.circular(6),
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: maxY < 1 ? 10 : maxY + 5,
+              color: _C.purple.withValues(alpha: 0.06),
+            ),
+          ),
+        ],
+      );
+    });
+
+    final needsScroll = entries.length > 5;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 20, 20, 12),
+      decoration: BoxDecoration(
+        color: _C.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 200,
+            child: needsScroll
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: entries.length * 60.0,
+                      child: _buildKmChart(barGroups, labels, maxY, entries),
+                    ),
+                  )
+                : _buildKmChart(barGroups, labels, maxY, entries),
+          ),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                    color: _C.purple, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            const Text('Kilómetros recorridos',
+                style: TextStyle(fontSize: 11, color: _C.textGrey)),
+          ]),
+          const SizedBox(height: 8),
+          // Resumen debajo del gráfico
+          ...entries.map((e) {
+            final nombre = _nombres[e.key] ??
+                (e.key.length > 6 ? e.key.substring(0, 6) : e.key);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                          color: _C.purple, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(nombre,
+                          style: const TextStyle(
+                              fontSize: 12, color: _C.textDark))),
+                  Text('${e.value.toStringAsFixed(1)} km',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _C.purple)),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKmChart(
+    List<BarChartGroupData> barGroups,
+    List<String> labels,
+    double maxY,
+    List<MapEntry<String, double>> entries,
+  ) {
+    return BarChart(
+      BarChartData(
+        maxY: maxY < 1 ? 10 : maxY + 5,
+        minY: 0,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) =>
+              const FlLine(color: _C.divider, strokeWidth: 1),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= labels.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    labels[i],
+                    style: const TextStyle(fontSize: 10, color: _C.textGrey),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              interval:
+                  (maxY / 5).ceilToDouble() < 1 ? 1 : (maxY / 5).ceilToDouble(),
+              getTitlesWidget: (v, _) => Text(
+                v.toInt().toString(),
+                style: const TextStyle(fontSize: 10, color: _C.textGrey),
+              ),
+            ),
+          ),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        barGroups: barGroups,
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => _C.textDark,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final nombre = _nombres[entries[groupIndex].key] ?? 'Vendedor';
+              return BarTooltipItem(
+                '$nombre\n${rod.toY.toStringAsFixed(1)} km',
+                const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Barra de distribución de estados ────────────────────────────────────────

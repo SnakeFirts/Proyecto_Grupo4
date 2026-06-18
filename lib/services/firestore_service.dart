@@ -143,12 +143,14 @@ class FirestoreService {
     required String comentario,
     double? latitud,
     double? longitud,
+    double? kilometros,
   }) async {
     await _bitacoras(leadId).add({
       'tipoInteraccion': tipoInteraccion,
       'comentario': comentario,
       'latitud': latitud,
       'longitud': longitud,
+      'kilometros': kilometros,
       'fecha': FieldValue.serverTimestamp(),
     });
   }
@@ -173,5 +175,59 @@ class FirestoreService {
     required String bitacoraId,
   }) async {
     await _bitacoras(leadId).doc(bitacoraId).delete();
+  }
+
+  // ─── KILÓMETROS POR USUARIO ────────────────────────────────────────────
+  /// Obtiene el total de kilómetros recorridos por cada vendedor.
+  /// Retorna un Map<userId, totalKm>.
+  Future<Map<String, double>> obtenerKilometrosPorUsuario() async {
+    final Map<String, double> kmPorUsuario = {};
+    final Map<String, String> leadToUser = {}; // leadId → userId
+
+    // 1. Obtener todos los leads para mapear leadId → userId
+    final leadsSnap = await _leads.get();
+    for (final doc in leadsSnap.docs) {
+      final data = doc.data();
+      final userId = data['userId'] as String?;
+      if (userId != null && userId.isNotEmpty) {
+        leadToUser[doc.id] = userId;
+      }
+    }
+
+    if (leadToUser.isEmpty) return kmPorUsuario;
+
+    // 2. Usar collectionGroup para traer todas las bitácoras de golpe
+    try {
+      final bitacorasSnap = await _db.collectionGroup('bitacoras').get();
+      for (final doc in bitacorasSnap.docs) {
+        final data = doc.data();
+        final kilometros = (data['kilometros'] as num?)?.toDouble();
+        if (kilometros != null && kilometros > 0) {
+          // Obtener el leadId del padre
+          final leadId = doc.reference.parent.parent?.id;
+          if (leadId != null) {
+            final userId = leadToUser[leadId];
+            if (userId != null) {
+              kmPorUsuario[userId] = (kmPorUsuario[userId] ?? 0) + kilometros;
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // Si collectionGroup falla (índice no creado), buscar lead por lead
+      for (final leadId in leadToUser.keys) {
+        final bitacorasSnap = await _bitacoras(leadId).get();
+        for (final doc in bitacorasSnap.docs) {
+          final data = doc.data();
+          final kilometros = (data['kilometros'] as num?)?.toDouble();
+          if (kilometros != null && kilometros > 0) {
+            final userId = leadToUser[leadId]!;
+            kmPorUsuario[userId] = (kmPorUsuario[userId] ?? 0) + kilometros;
+          }
+        }
+      }
+    }
+
+    return kmPorUsuario;
   }
 }

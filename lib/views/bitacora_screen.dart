@@ -19,7 +19,6 @@ class _C {
   static const divider = Color(0xFFE2E8F0);
   static const green = Color(0xFF22C55E);
   static const red = Color(0xFFEF4444);
-  static const amber = Color(0xFFF59E0B);
   static const purple = Color(0xFF8B5CF6);
 }
 
@@ -61,123 +60,141 @@ class _BitacoraView extends StatelessWidget {
       builder: (context, controller, _) {
         return Scaffold(
           backgroundColor: _C.bgPage,
-          body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Header ──────────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Row(children: [
-                    InkWell(
-                      onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: _C.divider),
+          body: Column(
+            children: [
+              // Header + info — fijos arriba
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Header ──────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Row(children: [
+                        InkWell(
+                          onTap: () => Navigator.pop(context),
                           borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: _C.divider),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                                size: 18, color: _C.textDark),
+                          ),
                         ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded,
-                            size: 18, color: _C.textDark),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Bitácora',
+                                    style: TextStyle(
+                                        fontSize: 12, color: _C.textGrey)),
+                                Text(
+                                  lead.nameprospecto,
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: _C.textDark),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ]),
+                        ),
+                      ]),
+                    ),
+
+                    // ── Info del lead ────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _C.bgCard,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _C.divider),
+                        ),
+                        child: Row(children: [
+                          if (lead.infoprospecto.isNotEmpty) ...[
+                            const Icon(Icons.business_outlined,
+                                size: 14, color: _C.textGrey),
+                            const SizedBox(width: 6),
+                            Text(lead.infoprospecto,
+                                style: const TextStyle(
+                                    fontSize: 12, color: _C.textMedium)),
+                            const SizedBox(width: 12),
+                          ],
+                          if (lead.telefono.isNotEmpty) ...[
+                            const Icon(Icons.phone_outlined,
+                                size: 14, color: _C.textGrey),
+                            const SizedBox(width: 4),
+                            Text(lead.telefono,
+                                style: const TextStyle(
+                                    fontSize: 12, color: _C.textMedium)),
+                          ],
+                        ]),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Bitácora',
-                                style: TextStyle(
-                                    fontSize: 12, color: _C.textGrey)),
-                            Text(
-                              lead.nameprospecto,
-                              style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: _C.textDark),
-                              overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 12),
+                    const Divider(color: _C.divider, height: 1),
+                  ],
+                ),
+              ),
+
+              // ── Historial scrollable ────────────────────────────────────
+              Expanded(
+                flex: 5,
+                child: lead.id == null
+                    ? const Center(
+                        child: Text('Lead sin ID — guarda primero el lead.',
+                            style: TextStyle(color: _C.textGrey)))
+                    : StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: svc.streamBitacoras(lead.id!),
+                        builder: (ctx, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(
+                                child:
+                                    CircularProgressIndicator(color: _C.blue));
+                          }
+                          final entradas = snap.data ?? [];
+                          final sinEntradas = entradas.isEmpty;
+                          return ListView(
+                            padding: const EdgeInsets.only(
+                              left: 20,
+                              right: 20,
+                              top: 16,
+                              bottom: 16,
                             ),
-                          ]),
-                    ),
-                  ]),
-                ),
+                            children: [
+                              if (sinEntradas) ...[
+                                const SizedBox(height: 40),
+                                _emptyHistorial(),
+                              ] else
+                                for (int i = 0; i < entradas.length; i++) ...[
+                                  if (i > 0) const SizedBox(height: 10),
+                                  _EntradaCard(
+                                    entrada: entradas[i],
+                                    leadId: lead.id!,
+                                    svc: svc,
+                                    isAdmin: isAdmin,
+                                  ),
+                                ],
+                            ],
+                          );
+                        },
+                      ),
+              ),
 
-                // ── Info del lead ────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _C.bgCard,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _C.divider),
-                    ),
-                    child: Row(children: [
-                      if (lead.infoprospecto.isNotEmpty) ...[
-                        const Icon(Icons.business_outlined,
-                            size: 14, color: _C.textGrey),
-                        const SizedBox(width: 6),
-                        Text(lead.infoprospecto,
-                            style: const TextStyle(
-                                fontSize: 12, color: _C.textMedium)),
-                        const SizedBox(width: 12),
-                      ],
-                      if (lead.telefono.isNotEmpty) ...[
-                        const Icon(Icons.phone_outlined,
-                            size: 14, color: _C.textGrey),
-                        const SizedBox(width: 4),
-                        Text(lead.telefono,
-                            style: const TextStyle(
-                                fontSize: 12, color: _C.textMedium)),
-                      ],
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Divider(color: _C.divider, height: 1),
-
-                // ── Historial de entradas ────────────────────────────────────
-                Expanded(
-                  child: lead.id == null
-                      ? const Center(
-                          child: Text('Lead sin ID — guarda primero el lead.',
-                              style: TextStyle(color: _C.textGrey)))
-                      : StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: svc.streamBitacoras(lead.id!),
-                          builder: (ctx, snap) {
-                            if (snap.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                  child: CircularProgressIndicator(
-                                      color: _C.blue));
-                            }
-                            final entradas = snap.data ?? [];
-                            if (entradas.isEmpty) {
-                              return _emptyHistorial();
-                            }
-                            return ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                              itemCount: entradas.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (ctx, i) => _EntradaCard(
-                                entrada: entradas[i],
-                                leadId: lead.id!,
-                                svc: svc,
-                                isAdmin: isAdmin,
-                              ),
-                            );
-                          },
-                        ),
-                ),
-
-                // ── Formulario nueva entrada ─────────────────────────────────
-                _NuevaEntradaPanel(
+              // ── Panel de nueva entrada (scrollable si el teclado ocupa espacio)
+              Expanded(
+                flex: 3,
+                child: _NuevaEntradaPanel(
                     controller: controller, lead: lead, svc: svc),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -383,6 +400,18 @@ class _EntradaCard extends StatelessWidget {
             ),
           ]),
         ],
+        if (entrada['kilometros'] != null) ...[
+          const SizedBox(height: 6),
+          Row(children: [
+            const Icon(Icons.speed_outlined, size: 13, color: _C.purple),
+            const SizedBox(width: 4),
+            Text(
+              '${(entrada['kilometros'] as num).toStringAsFixed(1)} km recorridos',
+              style: const TextStyle(
+                  fontSize: 11, color: _C.purple, fontWeight: FontWeight.w600),
+            ),
+          ]),
+        ],
       ]),
     );
   }
@@ -530,20 +559,16 @@ class _NuevaEntradaPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _C.bgCard,
-        border: Border(top: BorderSide(color: _C.divider)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.divider),
       ),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
+      padding: const EdgeInsets.all(16),
+      child: ClipRect(
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Tipo de interacción ──────────────────────────────────────────
@@ -577,9 +602,32 @@ class _NuevaEntradaPanel extends StatelessWidget {
                   posicion: controller.posicion,
                 ),
                 const SizedBox(height: 12),
+
+                // ── Kilómetros (requerido solo en Visita) ──────────────────────
+                TextField(
+                  controller: controller.kilometrosController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    hintText: 'Kilómetros recorridos *',
+                    hintStyle:
+                        const TextStyle(color: _C.textGrey, fontSize: 13),
+                    prefixIcon: const Icon(Icons.speed_outlined,
+                        size: 18, color: _C.purple),
+                    filled: true,
+                    fillColor: _C.bgPage,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
               ],
 
-              // ── Comentario + micrófono (solo en Llamada) ─────────────────────
+              // ── Comentario + micrófono ──────────────────────────────────────
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -601,7 +649,6 @@ class _NuevaEntradaPanel extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Micrófono solo en Llamada
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -670,12 +717,28 @@ class _NuevaEntradaPanel extends StatelessWidget {
                             return;
                           }
 
+                          // Validar kilómetros si es visita
+                          if (controller.tipoSeleccionado == 'Visita') {
+                            final km = controller.kilometros;
+                            if (km == null || km <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  backgroundColor: Color(0xFFEF4444),
+                                  content:
+                                      Text('Ingresa los kilómetros recorridos'),
+                                ),
+                              );
+                              return;
+                            }
+                          }
+
                           await svc.guardarBitacora(
                             leadId: lead.id!,
                             tipoInteraccion: controller.tipoSeleccionado,
                             comentario: comentario,
                             latitud: controller.posicion?.latitude,
                             longitud: controller.posicion?.longitude,
+                            kilometros: controller.kilometros,
                           );
 
                           controller.comentarioController.clear();
